@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stanovet – stavebniny a e-shop</title>
+  <meta name="description" content="Stavebniny Stanovet – přes 7 500 položek: hrubá stavba, izolace, střechy, suchá výstavba, koupelny, zahrada, nářadí. Nákup online, firemní ceny pro firmy.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=4">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-in">
+      <button class="burger" id="burger" aria-label="Menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="24" height="24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <a href="#/" class="logo" aria-label="Stanovet – úvod">
+        <span class="logo-mark">S</span>
+        <span class="logo-text">STANOVET<small>stavebniny</small></span>
+      </a>
+      <form class="search" id="search" role="search">
+        <input type="search" id="q" placeholder="Hledat zboží – např. Porotherm 44, KG 125, Baumit…" autocomplete="off" aria-label="Hledat zboží">
+        <button type="submit" aria-label="Hledat">
+          <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </form>
+      <a href="#/admin" class="hbtn" id="adminBtn" hidden>Administrace</a>
+      <a href="#/prihlaseni" class="hbtn" id="accBtn">
+        <svg viewBox="0 0 24 24" width="21" height="21"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1-4.5 4.5-6 8-6s7 1.5 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span id="accLabel">Přihlášení</span>
+      </a>
+      <a href="#/kosik" class="hbtn cart">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 6h15l-1.5 9h-12z M6 6L5 3H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="9" cy="20" r="1.6" fill="currentColor"/><circle cx="18" cy="20" r="1.6" fill="currentColor"/></svg>
+        <span id="cartTotal">0 Kč</span>
+        <b id="cartCount">0</b>
+      </a>
+    </div>
+    <nav class="mega" id="mega" aria-label="Kategorie"></nav>
+  </header>
+
+  <main id="app" class="wrap"></main>
+
+  <footer class="foot">
+    <div class="wrap foot-in">
+      <div>
+        <strong>STANOVET stavebniny</strong>
+        <p>Adresa a otevírací doba: <em>[doplnit]</em><br>Telefon / e-mail: <em>[doplnit]</em></p>
+      </div>
+      <div>
+        <strong>Nakupování</strong>
+        <p><a href="#/registrace">Registrace pro firmy</a><br><a href="#/kosik">Košík</a><br>Obchodní podmínky <em>[doplnit]</em></p>
+      </div>
+      <div>
+        <p>Ceny jsou uvedeny bez DPH i s DPH 21 %. Stav skladu je orientační, aktualizuje se z Money S3.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="js/app.js?v=3"></script>
+</body>
+</html>
