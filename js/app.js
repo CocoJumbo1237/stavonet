@@ -69,6 +69,7 @@ const ico = (id, size = 24) =>
 
 // ---------------------------------------------------------------- data
 let STROM = [], P = [], byKod = new Map(), nadById = new Map(), searchIdx = [];
+let OBR = {}; // kód → {img, popis, list} z feedů výrobců (skripty/baumit_feed.py)
 const katOf = (p) => nadById.get(p[6])?.kat.find((k) => k.slug === p[7]);
 
 // ---------------------------------------------------------------- účty
@@ -113,13 +114,7 @@ function priceHtml(p) {
   const tag = c.sleva ? `<span class="yourprice">Vaše cena −${c.sleva} %</span>` : "";
   if (isFirm())
     return `<div class="price">${tag}<div class="main">${kcAuto(c.bez)} <small>/ ${mj} bez DPH</small>${c.sleva ? `<span class="old">${kcAuto(c.listBez)}</span>` : ""}</div><div class="alt">${kcAuto(c.s)} s DPH</div></div>`;
-  return `<div class="price"><div class="main">${kcAuto(c.s)} <small>/ ${mj} s DPH</small></div><div class="alt">${kcAuto(c.bez)} bez DPH</div></div>`;
-}
-
-function stockHtml(p) {
-  return p[5] > 0
-    ? `<div class="stock">Skladem ${num(p[5])} ${esc(p[2])}</div>`
-    : `<div class="stock no">Na objednávku</div>`;
+  return `<div class="price"><div class="main">${kcAuto(c.s)} <small>/ ${mj}</small></div></div>`;
 }
 
 // ---------------------------------------------------------------- košík
@@ -150,10 +145,9 @@ function cartTotals(lines = cartLines()) {
 function card(p) {
   const [kod, nazev, mj, , , , nad] = p;
   return `<article class="p">
-    <a class="p-ico" href="#/p/${esc(kod)}" aria-hidden="true" tabindex="-1">${ico(nad, 36)}</a>
+    <a class="p-ico" href="#/p/${esc(kod)}" aria-hidden="true" tabindex="-1">${OBR[kod] ? `<img src="${esc(OBR[kod].img)}" alt="" loading="lazy">` : ico(nad, 36)}</a>
     <a class="p-name" href="#/p/${esc(kod)}">${esc(nazev)}</a>
     <div class="p-code">Kód ${esc(kod)}</div>
-    ${stockHtml(p)}
     ${priceHtml(p)}
     <form class="buy" data-kod="${esc(kod)}">
       <input class="qty" type="number" min="0.001" step="any" value="1" aria-label="Množství v ${esc(mj)}">
@@ -191,54 +185,61 @@ function markMega(nadId) {
 }
 
 // ---------------------------------------------------------------- stránky
-function home() {
-  markMega();
-  const skladem = P.filter((p) => p[5] > 0).length;
-  const u = currentUser();
-  app.innerHTML = `
-    <section class="hero">
-      <h1>Stavebniny Stavonet</h1>
-      <p>${P.length.toLocaleString("cs-CZ")} položek, z toho ${skladem.toLocaleString("cs-CZ")} skladem. Objednejte online s osobním odběrem nebo dovozem na stavbu.</p>
-      <div class="btns">
-        <a class="btn big" href="#/k/suche-maltove-smesi">Nakupovat</a>
-        ${u ? "" : `<a class="btn big light" href="#/registrace?typ=firma">Registrace pro firmy</a>`}
-      </div>
-    </section>
-    <div class="usp">
-      <div><b>Osobní odběr</b>na prodejně, připravíme předem</div>
-      <div><b>Doprava na stavbu</b>dovezeme materiál až na místo</div>
-      <div><b>Firemní ceny</b>pro registrované firmy, platba na fakturu</div>
-      <div><b>Poradíme</b>s výběrem materiálu i výpočtem množství</div>
-    </div>
-    <h2 class="section-title">Sortiment</h2>
-    <div class="tiles">${STROM.map((n) => `
-      <a class="tile" href="#/k/${n.slug}">
-        <div class="tile-ico">${ico(n.id, 26)}</div>
-        <div><h3>${esc(n.nazev)}</h3><small>${n.pocet.toLocaleString("cs-CZ")} položek</small></div>
-        <ul>${n.kat.slice(0, 4).map((k) => `<li>${esc(k.nazev)}</li>`).join("")}</ul>
-      </a>`).join("")}
-    </div>
-    ${isFirm() ? "" : `<section class="b2b">
-      <div>
-        <h2>Nakupujete pro firmu?</h2>
-        <ul>
-          <li>firemní ceny podle vašeho objemu</li>
-          <li>ceny zobrazené bez DPH</li>
-          <li>nákup na fakturu se splatností</li>
-          <li>historie objednávek a opakovaný nákup jedním klikem</li>
-        </ul>
-        <a class="btn big" href="#/registrace?typ=firma">Založit firemní účet</a>
-      </div>
-      <div class="b2b-side" style="padding:30px 32px"><b>B2B</b><p style="margin:6px 0 0">Firemní účet ověří náš obchodník.</p></div>
-    </section>`}
-    <div style="height:40px"></div>`;
+// levé menu Sortiment (úvod + výpisy); aktuální kategorie se rozbalí
+function sortiment(nad, kat, pod) {
+  return `<nav class="sortiment" aria-label="Sortiment">
+    <h2>Sortiment</h2>
+    ${STROM.map((n) => {
+      const open = nad && n.id === nad.id;
+      return `<a href="#/k/${n.slug}" class="${open && !kat ? "on" : open ? "open" : ""}">${esc(n.nazev)} <span>${n.pocet.toLocaleString("cs-CZ")}</span></a>
+      ${open ? n.kat.map((k) => `
+        <a href="#/k/${n.slug}/${k.slug}" class="sub ${k === kat && !pod ? "on" : ""}">${esc(k.nazev)} <span>${k.pocet}</span></a>
+        ${k === kat ? k.pod.map((x) => `<a class="sub2 ${x === pod ? "on" : ""}" href="#/k/${n.slug}/${k.slug}/${x.slug}">${esc(x.nazev)} <span>${x.pocet}</span></a>`).join("") : ""}`).join("") : ""}`;
+    }).join("")}
+  </nav>`;
 }
 
-const listState = { sort: "dop", skladem: false, shown: PAGE };
+const ZNACKY = ["Baumit", "Knauf", "Quick-mix", "Rigips", "Isover", "Rockwool", "Ytong", "Hebel", "Qpor", "KB-Blok", "Presbeton", "Porotherm"];
+
+function home() {
+  markMega();
+  const u = currentUser();
+  app.innerHTML = `
+    <div class="home">
+      ${sortiment()}
+      <div class="home-main">
+        <section class="hero">
+          <div class="hero-txt">
+            <span class="kicker">Stavebniny Stavonet</span>
+            <h1>Materiál na stavbu objednáte online</h1>
+            <p>${P.length.toLocaleString("cs-CZ")} položek – maltové směsi, zateplení, zdivo, sádrokarton i nářadí. Připravíme k odběru nebo dovezeme na stavbu.</p>
+            <div class="btns">
+              <a class="btn big" href="#/k/${STROM[0].slug}">Prohlédnout sortiment</a>
+              ${u ? "" : `<a class="btn big outline" href="#/registrace?typ=firma">Registrace pro firmy</a>`}
+            </div>
+          </div>
+          <div class="hero-wall" aria-hidden="true"></div>
+        </section>
+        <div class="usp">
+          <div><b>Osobní odběr</b>připravíme předem na prodejně</div>
+          <div><b>Doprava na stavbu</b>vlastními vozy až na místo</div>
+          <div><b>Firemní ceny</b>pro ověřené firmy, na fakturu</div>
+          <div><b>Poradíme</b>s výběrem i výpočtem množství</div>
+        </div>
+        <h2 class="section-title">Značky, které vedeme</h2>
+        <div class="brands">${ZNACKY.map((z) => `<a href="#/hledat?q=${encodeURIComponent(z)}">${esc(z)}</a>`).join("")}</div>
+        <section class="shop">
+          <div><h2>Prodejna</h2>${esc(CONFIG.prodejna)}</div>
+          <div><h2>Otevírací doba</h2><span class="row"><span>Po–Pá</span><b>7:00–15:30</b></span><span class="row muted"><span>So–Ne</span><span>zavřeno</span></span></div>
+        </section>
+      </div>
+    </div>`;
+}
+
+const listState = { sort: "nazev", shown: PAGE };
 function sortRows(rows) {
   const s = listState.sort;
   const pr = (p) => p[3] ?? null;
-  if (s === "dop") return rows.slice().sort((a, b) => (b[5] > 0) - (a[5] > 0) || a[1].localeCompare(b[1], "cs"));
   if (s === "nazev") return rows.slice().sort((a, b) => a[1].localeCompare(b[1], "cs"));
   if (s === "levne") return rows.slice().sort((a, b) => (pr(a) ?? 1e12) - (pr(b) ?? 1e12));
   if (s === "drahe") return rows.slice().sort((a, b) => (pr(b) ?? -1) - (pr(a) ?? -1));
@@ -246,9 +247,7 @@ function sortRows(rows) {
 }
 
 function listing({ title, crumbs, items, side, subtiles }) {
-  let rows = items;
-  if (listState.skladem) rows = rows.filter((p) => p[5] > 0);
-  rows = sortRows(rows);
+  const rows = sortRows(items);
   app.innerHTML = `
     <div class="crumbs">${crumbs}</div>
     <div class="list-head"><h1>${esc(title)}</h1><span class="muted">${rows.length.toLocaleString("cs-CZ")} položek</span></div>
@@ -258,12 +257,10 @@ function listing({ title, crumbs, items, side, subtiles }) {
       <section>
         <div class="tools">
           <label>Řadit <select id="sort">
-            <option value="dop">doporučené</option>
             <option value="nazev">podle názvu</option>
             <option value="levne">od nejlevnějšího</option>
             <option value="drahe">od nejdražšího</option>
           </select></label>
-          <label class="chip"><input type="checkbox" id="skl" ${listState.skladem ? "checked" : ""}> Jen skladem</label>
         </div>
         ${rows.length ? `<div class="products">${rows.slice(0, listState.shown).map(card).join("")}</div>`
           : `<div class="empty">Nic jsme nenašli. Zkuste jiný výraz nebo nám zavolejte – zboží rádi objednáme.</div>`}
@@ -272,7 +269,6 @@ function listing({ title, crumbs, items, side, subtiles }) {
     </div>`;
   $("#sort").value = listState.sort;
   $("#sort").onchange = (e) => { listState.sort = e.target.value; listState.shown = PAGE; route(); };
-  $("#skl").onchange = (e) => { listState.skladem = e.target.checked; listState.shown = PAGE; route(); };
   const more = $("#more");
   if (more) more.onclick = () => { listState.shown += PAGE; route(true); };
 }
@@ -290,13 +286,7 @@ function category(nadSlug, katSlug, podSlug) {
   if (kat) crumbs.push(pod ? `<a href="${base}/${kat.slug}">${esc(kat.nazev)}</a>` : esc(kat.nazev));
   if (pod) crumbs.push(esc(pod.nazev));
 
-  const side = `<aside class="side">
-    <div class="grp">${esc(nad.nazev)}</div>
-    <a href="${base}" class="${kat ? "" : "on"}">Vše <span>${nad.pocet}</span></a>
-    ${nad.kat.map((k) => `
-      <a href="${base}/${k.slug}" class="${k === kat && !pod ? "on" : ""}">${esc(k.nazev)} <span>${k.pocet}</span></a>
-      ${k === kat ? k.pod.map((x) => `<a class="sub ${x === pod ? "on" : ""}" href="${base}/${k.slug}/${x.slug}">${esc(x.nazev)} <span>${x.pocet}</span></a>`).join("") : ""}`).join("")}
-  </aside>`;
+  const side = sortiment(nad, kat, pod);
 
   let subtiles = "";
   if (!kat) subtiles = `<div class="subtiles">${nad.kat.map((k) => `<a href="${base}/${k.slug}">${esc(k.nazev)}<span>${k.pocet}</span></a>`).join("")}</div>`;
@@ -310,37 +300,37 @@ function search(q) {
   $("#q").value = q;
   const terms = norm(q).split(/\s+/).filter(Boolean);
   const items = terms.length ? P.filter((p, i) => terms.every((t) => searchIdx[i].includes(t))) : [];
-  listing({ title: `Hledání: ${q}`, crumbs: `<a href="#/">Úvod</a> / Hledání`, items });
+  listing({ title: `Hledání: ${q}`, crumbs: `<a href="#/">Úvod</a> / Hledání`, items, side: sortiment() });
 }
 
 function product(kod) {
   const p = byKod.get(kod);
   if (!p) return notFound();
-  const [, nazev, mj, , , sklad, nadId] = p;
+  const [, nazev, mj, , , , nadId] = p;
   const nad = nadById.get(nadId), kat = katOf(p), pod = kat?.pod.find((x) => x.slug === p[8]);
   markMega(nadId);
   const base = `#/k/${nad.slug}`;
-  const related = P.filter((x) => x !== p && x[6] === p[6] && x[7] === p[7] && x[8] === p[8]).sort((a, b) => (b[5] > 0) - (a[5] > 0)).slice(0, 8);
+  const related = P.filter((x) => x !== p && x[6] === p[6] && x[7] === p[7] && x[8] === p[8]).slice(0, 8);
   app.innerHTML = `
     <div class="crumbs"><a href="#/">Úvod</a> / <a href="${base}">${esc(nad.nazev)}</a>${kat ? ` / <a href="${base}/${kat.slug}">${esc(kat.nazev)}</a>` : ""}${pod ? ` / <a href="${base}/${kat.slug}/${pod.slug}">${esc(pod.nazev)}</a>` : ""}</div>
     <div class="pd">
-      <div class="pd-img">${ico(nadId, 120)}</div>
+      <div class="pd-img">${OBR[kod] ? `<img src="${esc(OBR[kod].img)}" alt="${esc(nazev)}">` : ico(nadId, 120)}</div>
       <div>
         <h1>${esc(nazev)}</h1>
+        ${OBR[kod]?.popis ? `<p class="pd-desc">${esc(OBR[kod].popis)}</p>` : ""}
         <div class="box">
-          ${stockHtml(p)}
           ${priceHtml(p)}
           <form class="buy" data-kod="${esc(kod)}">
             <input class="qty" type="number" min="0.001" step="any" value="1" aria-label="Množství v ${esc(mj)}">
             <span style="align-self:center" class="muted">${esc(mj)}</span>
             <button class="btn flex big" type="submit">Do košíku</button>
           </form>
-          ${sklad > 0 ? "" : `<p class="note">Zboží objednáme u dodavatele, termín dodání potvrdíme.</p>`}
           <table class="facts">
             <tr><td>Kód zboží</td><td>${esc(kod)}</td></tr>
             <tr><td>Měrná jednotka</td><td>${esc(mj)}</td></tr>
             <tr><td>Kategorie</td><td>${esc(nad.nazev)}${kat ? " › " + esc(kat.nazev) : ""}${pod ? " › " + esc(pod.nazev) : ""}</td></tr>
             <tr><td>Sazba DPH</td><td>${CONFIG.dph} %</td></tr>
+            ${OBR[kod]?.list ? `<tr><td>Technický list</td><td><a href="${esc(OBR[kod].list)}" target="_blank" rel="noopener">PDF od výrobce</a></td></tr>` : ""}
           </table>
         </div>
       </div>
@@ -367,7 +357,7 @@ function cartPage() {
         <table class="items">
           <thead><tr><th>Zboží</th><th class="num">Množství</th><th class="num">Cena / MJ ${firm ? "bez DPH" : "s DPH"}</th><th class="num">Celkem</th><th></th></tr></thead>
           <tbody>${lines.map(({ p, q, c, bez, s }) => `<tr>
-            <td><a href="#/p/${esc(p[0])}"><strong>${esc(p[1])}</strong></a><br><span class="note">Kód ${esc(p[0])} · ${p[5] >= q ? "skladem" : p[5] > 0 ? `skladem ${num(p[5])} ${esc(p[2])}, zbytek objednáme` : "na objednávku"}</span></td>
+            <td><a href="#/p/${esc(p[0])}"><strong>${esc(p[1])}</strong></a><br><span class="note">Kód ${esc(p[0])}</span></td>
             <td class="num"><input class="qty" type="number" min="0.001" step="any" value="${q}" data-kod="${esc(p[0])}"> ${esc(p[2])}</td>
             <td class="num">${c ? kcAuto(firm ? c.bez : c.s) : "na dotaz"}</td>
             <td class="num"><strong>${c ? kc(firm ? bez : s, true) : "–"}</strong></td>
@@ -903,7 +893,11 @@ window.addEventListener("hashchange", () => route());
 
 (async () => {
   try {
-    const d = await (await fetch("data/katalog.json?v=5")).json();
+    const [d, obr] = await Promise.all([
+      fetch("data/katalog.json?v=5").then((r) => r.json()),
+      fetch("data/obrazky.json?v=1").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+    ]);
+    OBR = obr;
     STROM = d.strom;
     P = d.produkty;
     STROM.forEach((n) => nadById.set(n.id, n));

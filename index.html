@@ -7,32 +7,30 @@
   <meta name="description" content="Stavebniny Stavonet – suché maltové směsi, zateplení, zdící materiál, suchá výstavba, hutní materiál, stavební chemie, nářadí. Objednávky online, firemní ceny pro firmy.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
   <header class="top">
     <div class="wrap top-in">
       <button class="burger" id="burger" aria-label="Menu" aria-expanded="false">
-        <svg viewBox="0 0 24 24" width="24" height="24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
-      <a href="#/" class="logo" aria-label="Stavonet – úvod">
-        <span class="logo-mark">S</span>
-        <span class="logo-text">STAVONET<small>stavebniny</small></span>
-      </a>
+      <a href="#/" class="logo" aria-label="Stavonet – úvod">S<svg viewBox="0 0 30 43" aria-hidden="true"><g fill="#E4572E"><rect x="0" y="0" width="14" height="7"/><rect x="16" y="0" width="14" height="7"/><rect x="0" y="9" width="6" height="7"/><rect x="8" y="9" width="14" height="7"/><rect x="24" y="9" width="6" height="7"/><rect x="8" y="18" width="14" height="7"/><rect x="8" y="27" width="6" height="7"/><rect x="16" y="27" width="6" height="7"/><rect x="8" y="36" width="14" height="7"/></g></svg>avonet</a>
       <form class="search" id="search" role="search">
         <input type="search" id="q" placeholder="Hledat zboží – např. Ytong, Baumit, Rigips, Porotherm…" autocomplete="off" aria-label="Hledat zboží">
-        <button type="submit" aria-label="Hledat">
-          <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        <button type="submit">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span>Hledat</span>
         </button>
       </form>
       <a href="#/admin" class="hbtn" id="adminBtn" hidden>Administrace</a>
       <a href="#/prihlaseni" class="hbtn" id="accBtn">
-        <svg viewBox="0 0 24 24" width="21" height="21"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1-4.5 4.5-6 8-6s7 1.5 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1-4.5 4.5-6 8-6s7 1.5 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         <span id="accLabel">Přihlášení</span>
       </a>
-      <a href="#/kosik" class="hbtn cart">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 6h15l-1.5 9h-12z M6 6L5 3H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="9" cy="20" r="1.6" fill="currentColor"/><circle cx="18" cy="20" r="1.6" fill="currentColor"/></svg>
+      <a href="#/kosik" class="hbtn cart" aria-label="Košík">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 6h15l-1.5 9h-12z M6 6L5 3H2" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="9" cy="20" r="1.6" fill="currentColor"/><circle cx="18" cy="20" r="1.6" fill="currentColor"/></svg>
         <span id="cartTotal">0 Kč</span>
         <b id="cartCount">0</b>
       </a>
@@ -53,13 +51,13 @@
         <p><a href="#/registrace">Registrace pro firmy</a><br><a href="#/kosik">Košík</a><br>Obchodní podmínky <em>[doplnit]</em></p>
       </div>
       <div>
-        <p>Ceny jsou uvedeny bez DPH i s DPH 21 %. Stav skladu je orientační, aktualizuje se z Money S3.</p>
+        <p>Ceny jsou uvedeny včetně DPH 21 %. Registrované firmy vidí ceny bez DPH.</p>
       </div>
     </div>
   </footer>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>
