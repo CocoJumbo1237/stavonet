@@ -895,7 +895,7 @@ window.addEventListener("hashchange", () => route());
   try {
     const [d, obr] = await Promise.all([
       fetch("data/katalog.json?v=5").then((r) => r.json()),
-      fetch("data/obrazky.json?v=1").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+      fetch("data/obrazky.json?v=2").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
     ]);
     OBR = obr;
     STROM = d.strom;
