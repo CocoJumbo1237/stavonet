@@ -1,0 +1,10 @@
+{
+  "_info": "Recenze z Google, přepsané ručně 2026-11-20. Hodnocení a počet aktualizovat podle profilu na Google Mapách. Jména jen křestní + iniciála.",
+  "hodnoceni": 4.7,
+  "pocet": 7,
+  "recenze": [
+    { "jmeno": "Jiří Z.", "hvezdy": 5, "text": "Doporučuji všem. Dobré ceny a velká vstřícnost. Nakupuji už zde hodně dlouho." },
+    { "jmeno": "Martin K.", "hvezdy": 5, "text": "Dobré ceny a ochotný pán. Snad takové firmy brzo nesežerou obří markety." },
+    { "jmeno": "Luboš Ú.", "hvezdy": 4, "text": "Jsou docela rychlí a naloží do auta." }
+  ]
+}

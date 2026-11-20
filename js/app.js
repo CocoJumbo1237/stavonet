@@ -9,7 +9,11 @@ const CONFIG = {
   supabaseKey: "sb_publishable__vp8QYLb3ZtCxkM6SCvjIQ_E6zfdtBG", // veřejný klíč; data chrání RLS v databázi
   ucet: "",            // číslo účtu pro platbu převodem [doplnit]
   prodejna: "Prodejna Stavonet [adresa doplnit], Po–Pá 7:00–15:30",
+  // odkaz „Napsat recenzi“ z Google Business profilu (https://g.page/r/…/review) [doplnit];
+  // do té doby vede na vyhledání firmy v Google Mapách
+  recenzeUrl: "",
 };
+const RECENZE_URL = CONFIG.recenzeUrl || "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Stavebniny Stavonet");
 const sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -70,6 +74,7 @@ const ico = (id, size = 24) =>
 // ---------------------------------------------------------------- data
 let STROM = [], P = [], byKod = new Map(), nadById = new Map(), searchIdx = [];
 let OBR = {}; // kód → {img, popis, list} z feedů výrobců (skripty/baumit_feed.py)
+let RECENZE = null; // {hodnoceni, pocet, recenze: [{jmeno, hvezdy, text}]} z data/recenze.json
 const katOf = (p) => nadById.get(p[6])?.kat.find((k) => k.slug === p[7]);
 
 // ---------------------------------------------------------------- účty
@@ -201,6 +206,24 @@ function sortiment(nad, kat, pod) {
 
 const ZNACKY = ["Baumit", "Knauf", "Quick-mix", "Rigips", "Isover", "Rockwool", "Ytong", "Hebel", "Qpor", "KB-Blok", "Presbeton", "Porotherm"];
 
+const hvezdy = (n) => `<span class="stars" aria-label="${n} z 5 hvězdiček">${"★".repeat(Math.round(n))}${"☆".repeat(5 - Math.round(n))}</span>`;
+const recenzeBtn = (cls = "btn") => `<a class="${cls}" href="${esc(RECENZE_URL)}" target="_blank" rel="noopener">Ohodnoťte nás na Google</a>`;
+
+function recenzeSekce() {
+  if (!RECENZE?.recenze?.length) return "";
+  const r = RECENZE;
+  return `<section class="reviews">
+    <div class="reviews-head">
+      <h2 class="section-title">Co o nás říkají zákazníci</h2>
+      <div class="reviews-score"><b>${r.hodnoceni.toLocaleString("cs-CZ", { minimumFractionDigits: 1 })}</b>${hvezdy(r.hodnoceni)}<span class="muted">${r.pocet} recenzí na Google</span></div>
+    </div>
+    <div class="reviews-list">${r.recenze.map((x) => `
+      <figure class="review">${hvezdy(x.hvezdy)}<blockquote>„${esc(x.text)}“</blockquote><figcaption>${esc(x.jmeno)} · Google</figcaption></figure>`).join("")}
+    </div>
+    <div class="reviews-cta">${recenzeBtn()}</div>
+  </section>`;
+}
+
 function home() {
   markMega();
   const u = currentUser();
@@ -228,6 +251,7 @@ function home() {
         </div>
         <h2 class="section-title">Značky, které vedeme</h2>
         <div class="brands">${ZNACKY.map((z) => `<a href="#/hledat?q=${encodeURIComponent(z)}">${esc(z)}</a>`).join("")}</div>
+        ${recenzeSekce()}
         <section class="shop">
           <div><h2>Prodejna</h2>${esc(CONFIG.prodejna)}</div>
           <div><h2>Otevírací doba</h2><span class="row"><span>Po–Pá</span><b>7:00–15:30</b></span><span class="row muted"><span>So–Ne</span><span>zavřeno</span></span></div>
@@ -289,8 +313,8 @@ function category(nadSlug, katSlug, podSlug) {
   const side = sortiment(nad, kat, pod);
 
   let subtiles = "";
-  if (!kat) subtiles = `<div class="subtiles">${nad.kat.map((k) => `<a href="${base}/${k.slug}">${esc(k.nazev)}<span>${k.pocet}</span></a>`).join("")}</div>`;
-  else if (kat.pod.length) subtiles = `<div class="subtiles"><a href="${base}/${kat.slug}" class="${pod ? "" : "on"}">Vše<span>${kat.pocet}</span></a>${kat.pod.map((x) => `<a href="${base}/${kat.slug}/${x.slug}" class="${x === pod ? "on" : ""}">${esc(x.nazev)}<span>${x.pocet}</span></a>`).join("")}</div>`;
+  if (!kat) subtiles = `<div class="subtiles">${nad.kat.map((k) => `<a href="${base}/${k.slug}">${esc(k.nazev)}</a>`).join("")}</div>`;
+  else if (kat.pod.length) subtiles = `<div class="subtiles"><a href="${base}/${kat.slug}" class="${pod ? "" : "on"}">Vše</a>${kat.pod.map((x) => `<a href="${base}/${kat.slug}/${x.slug}" class="${x === pod ? "on" : ""}">${esc(x.nazev)}</a>`).join("")}</div>`;
 
   listing({ title: (pod || kat || nad).nazev, crumbs: crumbs.join(" / "), items, side, subtiles });
 }
@@ -534,6 +558,7 @@ async function orderPage(cislo) {
       <div>
         <p>Děkujeme. Potvrzení posíláme na <b>${esc(o.kontakt.email)}</b>. ${o.doprava === "odber" ? "Až bude zboží připravené k odběru, dáme vám vědět." : "Termín a cenu dopravy vám potvrdíme telefonicky."}</p>
         ${platbaInfo}
+        <p class="note">Byli jste spokojeni? Budeme rádi za hodnocení – pomůže dalším zákazníkům. ${recenzeBtn("")}</p>
         <h2 class="section-title" style="font-size:24px">Položky</h2>
         ${orderItems(o)}
       </div>
@@ -893,11 +918,14 @@ window.addEventListener("hashchange", () => route());
 
 (async () => {
   try {
-    const [d, obr] = await Promise.all([
+    const [d, obr, rec] = await Promise.all([
       fetch("data/katalog.json?v=5").then((r) => r.json()),
       fetch("data/obrazky.json?v=3").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+      fetch("data/recenze.json?v=1").then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     OBR = obr;
+    RECENZE = rec;
+    $("#footRecenze").href = RECENZE_URL;
     STROM = d.strom;
     P = d.produkty;
     STROM.forEach((n) => nadById.set(n.id, n));
