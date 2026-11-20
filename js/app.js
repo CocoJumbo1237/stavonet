@@ -330,7 +330,7 @@ function product(kod) {
             <tr><td>Měrná jednotka</td><td>${esc(mj)}</td></tr>
             <tr><td>Kategorie</td><td>${esc(nad.nazev)}${kat ? " › " + esc(kat.nazev) : ""}${pod ? " › " + esc(pod.nazev) : ""}</td></tr>
             <tr><td>Sazba DPH</td><td>${CONFIG.dph} %</td></tr>
-            ${OBR[kod]?.list ? `<tr><td>Technický list</td><td><a href="${esc(OBR[kod].list)}" target="_blank" rel="noopener">PDF od výrobce</a></td></tr>` : ""}
+            ${OBR[kod]?.list ? `<tr><td>Technický list</td><td><a href="${esc(OBR[kod].list)}" target="_blank" rel="noopener">Otevřít u výrobce</a></td></tr>` : ""}
           </table>
         </div>
       </div>
@@ -895,7 +895,7 @@ window.addEventListener("hashchange", () => route());
   try {
     const [d, obr] = await Promise.all([
       fetch("data/katalog.json?v=5").then((r) => r.json()),
-      fetch("data/obrazky.json?v=2").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+      fetch("data/obrazky.json?v=3").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
     ]);
     OBR = obr;
     STROM = d.strom;
