@@ -191,10 +191,10 @@ function sortiment(nad, kat, pod) {
     <h2>Sortiment</h2>
     ${STROM.map((n) => {
       const open = nad && n.id === nad.id;
-      return `<a href="#/k/${n.slug}" class="${open && !kat ? "on" : open ? "open" : ""}">${esc(n.nazev)} <span>${n.pocet.toLocaleString("cs-CZ")}</span></a>
+      return `<a href="#/k/${n.slug}" class="${open && !kat ? "on" : open ? "open" : ""}">${esc(n.nazev)}</a>
       ${open ? n.kat.map((k) => `
-        <a href="#/k/${n.slug}/${k.slug}" class="sub ${k === kat && !pod ? "on" : ""}">${esc(k.nazev)} <span>${k.pocet}</span></a>
-        ${k === kat ? k.pod.map((x) => `<a class="sub2 ${x === pod ? "on" : ""}" href="#/k/${n.slug}/${k.slug}/${x.slug}">${esc(x.nazev)} <span>${x.pocet}</span></a>`).join("") : ""}`).join("") : ""}`;
+        <a href="#/k/${n.slug}/${k.slug}" class="sub ${k === kat && !pod ? "on" : ""}">${esc(k.nazev)}</a>
+        ${k === kat ? k.pod.map((x) => `<a class="sub2 ${x === pod ? "on" : ""}" href="#/k/${n.slug}/${k.slug}/${x.slug}">${esc(x.nazev)}</a>`).join("") : ""}`).join("") : ""}`;
     }).join("")}
   </nav>`;
 }
