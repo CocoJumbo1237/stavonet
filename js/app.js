@@ -1,4 +1,4 @@
-// Stanovet – objednávkový systém stavebnin (MVP).
+// Stavonet – objednávkový systém stavebnin (MVP).
 // Katalog: data/katalog.json (skripty/strom.py ze skladových karet Money S3) – jen pro zobrazení.
 // Produkt = [kód, název, MJ, cena bez DPH | null, cena s DPH | null, množství skladem, nadkategorie, kategorie, podkategorie]
 // Účty, objednávky a výpočet cen: Supabase (RPC vytvor_objednavku počítá ceny na serveru). Košík je v localStorage.
@@ -8,7 +8,7 @@ const CONFIG = {
   supabaseUrl: "https://amtjxsvmtqgddzsnobfp.supabase.co",
   supabaseKey: "sb_publishable__vp8QYLb3ZtCxkM6SCvjIQ_E6zfdtBG", // veřejný klíč; data chrání RLS v databázi
   ucet: "",            // číslo účtu pro platbu převodem [doplnit]
-  prodejna: "Prodejna Stanovet [adresa doplnit]",
+  prodejna: "Prodejna Stavonet [adresa doplnit], Po–Pá 7:00–15:30",
 };
 const sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
 
@@ -48,15 +48,21 @@ function toast(msg) {
 }
 
 // ---------------------------------------------------------------- ikony nadkategorií
+// klíče = slugy kategorií ze starého stavonet.cz (skripty/strom.py)
 const ICONS = {
-  "hruba-stavba": '<path d="M3 6h18v4H3zM3 14h18v4H3z M9 6v4 M15 10v4 M7 14v4 M15 14v4"/>',
-  "izolace-fasady": '<path d="M3 5h18v14H3z M3 9h18 M3 13h18 M3 17h18"/>',
-  strechy: '<path d="M2 12L12 4l10 8 M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>',
-  "sucha-vystavba-interier": '<path d="M4 4h7v16H4z M13 4h7v16h-7z M7.5 4v16 M16.5 4v16"/>',
-  "koupelna-obklady": '<path d="M3 12h18v3a5 5 0 01-5 5H8a5 5 0 01-5-5z M6 12V6a2 2 0 014 0"/><path d="M7 20l-1 2 M17 20l1 2"/>',
-  zahrada: '<path d="M3 3h8v8H3z M13 3h8v8h-8z M3 13h8v8H3z M13 13h8v8h-8z"/>',
+  "suche-maltove-smesi": '<path d="M6 4h12l-1 4H7z M7 8l-1 12h12L17 8"/><path d="M9 13h6"/>',
+  "zatepleni-budov": '<path d="M3 5h18v14H3z M3 9h18 M3 13h18 M3 17h18"/>',
+  "povrchove-upravy": '<path d="M4 4h12v5H4z M16 6h3v6h-8v3 M10 15h2v6h-2z"/>',
+  "sanace-budov": '<path d="M3 21h18 M5 21V9l7-5 7 5v12"/><path d="M9 14c1-1 2 1 3 0s2 1 3 0"/>',
+  "zdici-material": '<path d="M3 6h18v4H3zM3 14h18v4H3z M9 6v4 M15 10v4 M7 14v4 M15 14v4"/>',
+  "sucha-vystavba": '<path d="M4 4h7v16H4z M13 4h7v16h-7z M7.5 4v16 M16.5 4v16"/>',
+  "hutni-material": '<path d="M4 5h16 M4 19h16 M12 5v14 M8 5v2 M16 5v2 M8 19v-2 M16 19v-2"/>',
+  "stavebni-chemie": '<path d="M9 3h6 M10 3v5L5 19a1.5 1.5 0 001.4 2h11.2A1.5 1.5 0 0019 19L14 8V3"/><path d="M7.5 14h9"/>',
   naradi: '<path d="M14 6a4 4 0 015 5l-9 9-5-5z M5 15l-2 6 6-2"/>',
-  "zelezarstvi-chemie": '<path d="M14 3l7 7-3 3-7-7z M11 6L4 13v4l3 3h4l7-7"/>',
+  hydroizolace: '<path d="M12 3c4 5 6 8 6 11a6 6 0 01-12 0c0-3 2-6 6-11z"/>',
+  zarubne: '<path d="M5 21V3h14v18 M3 21h18 M8 21V6h8v15"/>',
+  kominy: '<path d="M8 21V6h8v15 M6 6h12V3H6z M3 21h18"/><path d="M10 10h4 M10 14h4"/>',
+  parapety: '<path d="M4 4h16v10H4z M2 14h20v3H2z M12 4v10"/>',
 };
 const ico = (id, size = 24) =>
   `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[id] || ICONS.naradi}</svg>`;
@@ -162,8 +168,8 @@ function buildMega() {
       <a href="#/k/${n.slug}">${esc(n.nazev)}</a>
       <div class="mega-panel"><div class="mega-panel-in">
         ${n.kat.map((k) => `<div><h4><a href="#/k/${n.slug}/${k.slug}">${esc(k.nazev)}</a></h4>
-          <ul>${k.pod.map((pd) => `<li><a href="#/k/${n.slug}/${k.slug}/${pd.slug}">${esc(pd.nazev)}</a></li>`).join("")}</ul></div>`).join("")}
-        <div><h4><a href="#/k/${n.slug}">Vše: ${esc(n.nazev)} →</a></h4></div>
+          ${k.pod.length ? `<ul>${k.pod.map((pd) => `<li><a href="#/k/${n.slug}/${k.slug}/${pd.slug}">${esc(pd.nazev)}</a></li>`).join("")}</ul>` : ""}</div>`).join("")}
+        <div><h4><a href="#/k/${n.slug}">Vše: ${esc(n.nazev)} (${n.pocet}) →</a></h4></div>
       </div></div>
     </div>`).join("")}</div>`;
   const mobile = () => matchMedia("(max-width: 1000px)").matches;
@@ -191,10 +197,10 @@ function home() {
   const u = currentUser();
   app.innerHTML = `
     <section class="hero">
-      <h1>Stavební materiál pro stavbu i rekonstrukci</h1>
+      <h1>Stavebniny Stavonet</h1>
       <p>${P.length.toLocaleString("cs-CZ")} položek, z toho ${skladem.toLocaleString("cs-CZ")} skladem. Objednejte online s osobním odběrem nebo dovozem na stavbu.</p>
       <div class="btns">
-        <a class="btn big" href="#/k/hruba-stavba">Nakupovat</a>
+        <a class="btn big" href="#/k/suche-maltove-smesi">Nakupovat</a>
         ${u ? "" : `<a class="btn big light" href="#/registrace?typ=firma">Registrace pro firmy</a>`}
       </div>
     </section>
@@ -314,9 +320,9 @@ function product(kod) {
   const nad = nadById.get(nadId), kat = katOf(p), pod = kat?.pod.find((x) => x.slug === p[8]);
   markMega(nadId);
   const base = `#/k/${nad.slug}`;
-  const related = P.filter((x) => x !== p && x[7] === p[7] && x[8] === p[8]).sort((a, b) => (b[5] > 0) - (a[5] > 0)).slice(0, 8);
+  const related = P.filter((x) => x !== p && x[6] === p[6] && x[7] === p[7] && x[8] === p[8]).sort((a, b) => (b[5] > 0) - (a[5] > 0)).slice(0, 8);
   app.innerHTML = `
-    <div class="crumbs"><a href="#/">Úvod</a> / <a href="${base}">${esc(nad.nazev)}</a> / <a href="${base}/${kat.slug}">${esc(kat.nazev)}</a>${pod ? ` / <a href="${base}/${kat.slug}/${pod.slug}">${esc(pod.nazev)}</a>` : ""}</div>
+    <div class="crumbs"><a href="#/">Úvod</a> / <a href="${base}">${esc(nad.nazev)}</a>${kat ? ` / <a href="${base}/${kat.slug}">${esc(kat.nazev)}</a>` : ""}${pod ? ` / <a href="${base}/${kat.slug}/${pod.slug}">${esc(pod.nazev)}</a>` : ""}</div>
     <div class="pd">
       <div class="pd-img">${ico(nadId, 120)}</div>
       <div>
@@ -333,7 +339,7 @@ function product(kod) {
           <table class="facts">
             <tr><td>Kód zboží</td><td>${esc(kod)}</td></tr>
             <tr><td>Měrná jednotka</td><td>${esc(mj)}</td></tr>
-            <tr><td>Kategorie</td><td>${esc(kat.nazev)}${pod ? " › " + esc(pod.nazev) : ""}</td></tr>
+            <tr><td>Kategorie</td><td>${esc(nad.nazev)}${kat ? " › " + esc(kat.nazev) : ""}${pod ? " › " + esc(pod.nazev) : ""}</td></tr>
             <tr><td>Sazba DPH</td><td>${CONFIG.dph} %</td></tr>
           </table>
         </div>
@@ -897,7 +903,7 @@ window.addEventListener("hashchange", () => route());
 
 (async () => {
   try {
-    const d = await (await fetch("data/katalog.json")).json();
+    const d = await (await fetch("data/katalog.json?v=5")).json();
     STROM = d.strom;
     P = d.produkty;
     STROM.forEach((n) => nadById.set(n.id, n));
