@@ -8,12 +8,24 @@ const CONFIG = {
   supabaseUrl: "https://amtjxsvmtqgddzsnobfp.supabase.co",
   supabaseKey: "sb_publishable__vp8QYLb3ZtCxkM6SCvjIQ_E6zfdtBG", // veřejný klíč; data chrání RLS v databázi
   ucet: "",            // číslo účtu pro platbu převodem [doplnit]
-  prodejna: "Prodejna Stavonet [adresa doplnit], Po–Pá 7:00–15:30",
+  prodejna: "Prodejna Stavonet, Dobronická 1257, Praha 4 – Kunratice, Po–Pá 7:00–15:30",
+  adresa: "Dobronická 1257, 148 00 Praha 4 – Kunratice",
+  gps: [50.0101994, 14.4694328],
+  telefony: [
+    { jmeno: "Tomáš Motal", tel: "+420 777 021 617" },
+    { jmeno: "Ivo Motal", tel: "+420 773 021 618" },
+  ],
+  email: "motal@stavonet.cz",
+  firma: { nazev: "Tomáš Motal", ico: "71381783", sidlo: "Ke smrčině 244, 149 00 Praha 4 – Újezd u Průhonic" },
   // odkaz „Napsat recenzi“ z Google Business profilu (https://g.page/r/…/review) [doplnit];
   // do té doby vede na vyhledání firmy v Google Mapách
   recenzeUrl: "",
 };
-const RECENZE_URL = CONFIG.recenzeUrl || "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Stavebniny Stavonet");
+const RECENZE_URL = CONFIG.recenzeUrl || "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Stavebniny Stavonet, " + CONFIG.adresa);
+const NAVIGACE_URL = "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(CONFIG.gps.join(","));
+const MAPYCZ_URL = `https://mapy.cz/zakladni?q=${encodeURIComponent(CONFIG.adresa)}`;
+const telHref = (t) => "tel:" + t.replace(/\s/g, "");
+const telBez = (t) => t.replace(/^\+420\s*/, "");
 const sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -224,6 +236,35 @@ function recenzeSekce() {
   </section>`;
 }
 
+async function termsPage() {
+  markMega();
+  app.innerHTML = `<div class="crumbs"><a href="#/">Úvod</a> / Obchodní podmínky</div><div class="list-head"><h1>Obchodní podmínky</h1></div><div class="terms" id="terms">Načítám…</div>`;
+  // vlastní statický soubor z webu (ne uživatelský obsah)
+  const html = await fetch("data/obchodni-podminky.html?v=1").then((r) => (r.ok ? r.text() : null)).catch(() => null);
+  const el = $("#terms");
+  if (el) el.innerHTML = html || `Obchodní podmínky se nepodařilo načíst. Napište nám na <a href="mailto:${esc(CONFIG.email)}">${esc(CONFIG.email)}</a>.`;
+}
+
+function contactPage() {
+  markMega();
+  const [lat, lon] = CONFIG.gps, d = 0.006;
+  const osm = `https://www.openstreetmap.org/export/embed.html?bbox=${lon - d},${lat - d / 2},${lon + d},${lat + d / 2}&layer=mapnik&marker=${lat},${lon}`;
+  app.innerHTML = `
+    <div class="crumbs"><a href="#/">Úvod</a> / Kontakt</div>
+    <div class="list-head"><h1>Kontakt</h1></div>
+    <div class="contact">
+      <div class="contact-info">
+        <section><h2>Prodejna</h2><p>Stavebniny Stavonet<br>${esc(CONFIG.adresa)}</p>
+          <p class="shop-btns"><a class="btn" href="${esc(NAVIGACE_URL)}" target="_blank" rel="noopener">Navigovat (Google Mapy)</a><a class="btn ghost" href="${esc(MAPYCZ_URL)}" target="_blank" rel="noopener">Mapy.cz</a></p></section>
+        <section><h2>Telefon</h2>${CONFIG.telefony.map((t) => `<a class="row tel" href="${telHref(t.tel)}"><span>${esc(t.jmeno)}</span><b>${esc(t.tel)}</b></a>`).join("")}</section>
+        <section><h2>E-mail</h2><p><a href="mailto:${esc(CONFIG.email)}">${esc(CONFIG.email)}</a></p></section>
+        <section><h2>Otevírací doba</h2><span class="row"><span>Po–Pá</span><b>7:00–15:30</b></span><span class="row muted"><span>So–Ne</span><span>zavřeno</span></span></section>
+        <section><h2>Provozovatel</h2><p>${esc(CONFIG.firma.nazev)}<br>IČO ${esc(CONFIG.firma.ico)}<br>Sídlo: ${esc(CONFIG.firma.sidlo)}<br><span class="muted">Fyzická osoba zapsaná v živnostenském rejstříku.</span></p></section>
+      </div>
+      <iframe class="contact-map" title="Mapa – Stavebniny Stavonet, ${esc(CONFIG.adresa)}" src="${esc(osm)}" loading="lazy"></iframe>
+    </div>`;
+}
+
 function home() {
   markMega();
   const u = currentUser();
@@ -253,7 +294,9 @@ function home() {
         <div class="brands">${ZNACKY.map((z) => `<a href="#/hledat?q=${encodeURIComponent(z)}">${esc(z)}</a>`).join("")}</div>
         ${recenzeSekce()}
         <section class="shop">
-          <div><h2>Prodejna</h2>${esc(CONFIG.prodejna)}</div>
+          <div><h2>Prodejna</h2><span>Stavebniny Stavonet<br>${esc(CONFIG.adresa)}</span>
+            <span class="shop-btns"><a class="btn" href="${esc(NAVIGACE_URL)}" target="_blank" rel="noopener">Navigovat</a><a class="btn ghost" href="#/kontakt">Kontakty a mapa</a></span></div>
+          <div><h2>Zavolejte nám</h2>${CONFIG.telefony.map((t) => `<a class="row tel" href="${telHref(t.tel)}"><span>${esc(t.jmeno)}</span><b>${esc(telBez(t.tel))}</b></a>`).join("")}<a class="row tel" href="mailto:${esc(CONFIG.email)}"><span>E-mail</span><b>${esc(CONFIG.email)}</b></a></div>
           <div><h2>Otevírací doba</h2><span class="row"><span>Po–Pá</span><b>7:00–15:30</b></span><span class="row muted"><span>So–Ne</span><span>zavřeno</span></span></div>
         </section>
       </div>
@@ -473,7 +516,7 @@ function checkout() {
         <p class="muted" style="margin-top:-6px">${lines.length} ${lines.length === 1 ? "položka" : lines.length < 5 ? "položky" : "položek"}</p>
         ${sumTable(t, `<tr><td>Doprava</td><td id="sDoprava">zdarma</td></tr>`)}
         ${t.bezCeny ? `<p class="note">+ ${t.bezCeny} bez ceny – doplníme v potvrzení.</p>` : ""}
-        <label class="check"><input type="checkbox" name="vop" required> <span>Souhlasím s obchodními podmínkami <em>[doplnit]</em> a se zpracováním osobních údajů.</span></label>
+        <label class="check"><input type="checkbox" name="vop" required> <span>Souhlasím s <a href="#/obchodni-podminky" target="_blank">obchodními podmínkami</a> a se zpracováním osobních údajů.</span></label>
         <div class="err" id="coErr"></div>
         <button class="btn big" style="width:100%" type="submit">Odeslat objednávku</button>
       </div>
@@ -638,7 +681,7 @@ function registerPage(params) {
         <label class="full">E-mail *<input name="email" type="email" required autocomplete="username"></label>
         <label>Heslo * (min. 8 znaků)<input name="heslo" type="password" required minlength="8" autocomplete="new-password"></label>
         <label>Heslo znovu *<input name="heslo2" type="password" required autocomplete="new-password"></label>
-        <label class="check full"><input type="checkbox" name="vop"> <span>Souhlasím s obchodními podmínkami a zpracováním osobních údajů.</span></label>
+        <label class="check full"><input type="checkbox" name="vop"> <span>Souhlasím s <a href="#/obchodni-podminky" target="_blank">obchodními podmínkami</a> a zpracováním osobních údajů.</span></label>
         <div class="err full" id="rErr"></div>
         <button class="btn big full" type="submit">Vytvořit účet</button>
       </form>
@@ -886,6 +929,8 @@ function route(keepScroll) {
     case "p": product(parts[1]); break;
     case "hledat": search(params.get("q") || ""); break;
     case "kosik": cartPage(); break;
+    case "kontakt": contactPage(); break;
+    case "obchodni-podminky": termsPage(); break;
     case "pokladna": checkout(); break;
     case "objednavka": orderPage(parts[1]); break;
     case "prihlaseni": loginPage(params); break;
