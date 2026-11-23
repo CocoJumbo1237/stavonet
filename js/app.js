@@ -169,11 +169,12 @@ function buyForm(p, big = false) {
       <div class="buy-total">${buyTotal(p, 1)}</div>
     </form>`;
 }
-function buyTotal(p, q) {
+function buyTotal(p, q, odstin) {
   const c = price(p);
   if (!c || !(q > 0)) return "";
-  const firm = isFirm();
-  return `Celkem ${num(q)} ${esc(p[2])}: <b>${kc(r2((firm ? c.bez : c.s) * q), true)}</b> ${firm ? "bez DPH" : "s DPH"}`;
+  const firm = isFirm(), pp = priplatek(odstin);  // u odstínu Baumit Life včetně příplatku
+  const j = (firm ? c.bez : c.s) + (pp ? (firm ? pp.bez : pp.s) : 0);
+  return `Celkem ${num(q)} ${esc(p[2])}${pp ? " vč. příplatku za odstín" : ""}: <b>${kc(r2(j * q), true)}</b> ${firm ? "bez DPH" : "s DPH"}`;
 }
 
 // ---------------------------------------------------------------- košík
@@ -574,11 +575,13 @@ async function odstinKonfigurator(p) {
       <div id="odstinInfo"></div>
     </div>`;
   const inp = $("#odstinKod"), info = $("#odstinInfo");
+  const prepocet = () => $(".qty", form)?.dispatchEvent(new Event("input", { bubbles: true }));
   let n = 0, t;
   const vyhodnot = async () => {
     const v = inp.value.replace(/\D/g, "");
     const my = ++n;
     form._odstin = null;
+    prepocet();
     if (!v) { delete form.dataset.odstin; info.innerHTML = ""; return; }
     if (v.length < 4) { form.dataset.odstin = "chyba"; info.innerHTML = `<p class="note">Kód odstínu má 4 číslice.</p>`; return; }
     form.dataset.odstin = "ceka";
@@ -588,6 +591,7 @@ async function odstinKonfigurator(p) {
     if (!o.platny) { form.dataset.odstin = "chyba"; info.innerHTML = `<div class="warnbox">${esc(o.upozorneni[0])}</div>`; return; }
     form.dataset.odstin = "ok";
     form._odstin = o;
+    prepocet();
     const firm = isFirm(), c = price(p), pp = priplatek(o);
     const sazba = firm ? o.sazba_bez : r2(o.sazba_bez * (1 + CONFIG.dph / 100));
     info.innerHTML = `
@@ -1191,7 +1195,7 @@ app.addEventListener("input", (e) => {
   const i = e.target.closest(".buy .qty");
   if (!i) return;
   const f = i.closest(".buy"), t = f.querySelector(".buy-total"), p = byKod.get(f.dataset.kod);
-  if (t && p) t.innerHTML = buyTotal(p, r2(+i.value));
+  if (t && p) t.innerHTML = buyTotal(p, r2(+i.value), f._odstin);
 });
 $("#search").addEventListener("submit", (e) => {
   e.preventDefault();
