@@ -389,3 +389,13 @@ table.items { width: 100%; border-collapse: collapse; background: var(--surface)
 .chip:hover { border-color: currentColor; }
 .chip.on { border: 2px solid var(--accent, #c4502b); padding: 6px 10px; font-weight: 600; }
 .p-var { font-size: 13px; color: var(--muted); text-decoration: none; }
+
+/* odstín, který u výrobku nelze vyrobit: bez ceny, košík neaktivní */
+.box.nelze .price, .box.nelze .buy-total { display: none; }
+.box.nelze form.buy button[type=submit] { background: #bdbdbd; border-color: #bdbdbd; color: #fff; cursor: not-allowed; }
+.box.nelze form.buy .stepper { opacity: .5; }
+.nelze-txt { color: var(--warn); }
+.vyr-odkazy { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.vyr-odkaz { padding: 5px 10px; background: #fff; border: 1px solid var(--line); border-radius: 6px; font-weight: 600; text-decoration: none; }
+.vyr-odkaz:hover { border-color: var(--accent); }
+.vyr-ne { padding: 5px 10px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; }

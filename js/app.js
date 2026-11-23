@@ -621,6 +621,8 @@ let odstinPrenos = null; // odstín zadaný před přepnutím struktury → pře
 app.addEventListener("click", (e) => {
   const a = e.target.closest("[data-struktura]");
   if (a) odstinPrenos = { skupina: a.dataset.struktura, kod: $("#odstinKod")?.value || "" };
+  const b = e.target.closest("[data-odstin-prenos]");
+  if (b) odstinPrenos = { skupina: "*", kod: b.dataset.odstinPrenos };
 });
 
 // Popis a parametry od výrobce (skripty/nazvy.py → data/nazvy.json), jako „Popis / Parametry“ na dek.cz.
@@ -636,10 +638,34 @@ function podkladyHtml(kod) {
 
 // ---------------------------------------------------------------- odstín Baumit Life (ticket 011)
 // Zda jde odstín v daném výrobku namíchat a jaký je příplatek, říká Supabase (RPC baumit_odstin nad tabulkami
-// baumit_odstiny, baumit_odstin_vyrobky, baumit_priplatky). Nekompatibilní odstín neblokujeme, jen upozorníme.
+// baumit_odstiny, baumit_odstin_vyrobky, baumit_priplatky). Odstín, který Baumit u výrobku nevyrábí (● jen Pura,
+// ◐ jen Star/Pura/Granopor/Creativ), do košíku nepustíme – cena zmizí, tlačítko zešedne a nabídneme odkazy na naše
+// karty výrobků, ve kterých odstín vyrobit jde (odstín se do nich přenese).
 const dphTxt = (firm) => (firm ? "bez DPH" : "s DPH");
 function odstinRadek(o, pp, firm) {
-  return `<br><span class="note"><span class="swatch" style="background:#${esc(o.hex || "fff")}"></span>Odstín Baumit Life ${esc(o.odstin)}${o.nazev ? " " + esc(o.nazev) : ""}${pp ? ` · vč. příplatku ${kcAuto(firm ? pp.bez : pp.s)} / bal. ${dphTxt(firm)}` : ""}${o.kompatibilni ? "" : ` · <b style="color:var(--warn)">u tohoto výrobku Baumit nevyrábí – ověříme</b>`}</span>`;
+  return `<br><span class="note"><span class="swatch" style="background:#${esc(o.hex || "fff")}"></span>Odstín Baumit Life ${esc(o.odstin)}${o.nazev ? " " + esc(o.nazev) : ""}${pp ? ` · vč. příplatku ${kcAuto(firm ? pp.bez : pp.s)} / bal. ${dphTxt(firm)}` : ""}${o.kompatibilni ? "" : ` · <b style="color:var(--warn)">u tohoto výrobku Baumit nevyrábí – položku odeberte, objednávka by neprošla</b>`}</span>`;
+}
+// Naše karty výrobku podle názvu Baumitu (např. „PuraTop“) – shoda se začátkem názvu v Money, delší název
+// ze seznamu má přednost („StarTop Fine“ nepatří ke „StarTop“).
+const bezBaum = (t) => norm(String(t)).replace(/\s+/g, " ").replace(/^\s*baum(?:it|\.)\s*/, "");
+function kartyVyrobku(vyr, vsechny) {
+  const v = norm(vyr), delsi = vsechny.map(norm).filter((x) => x.length > v.length && x.startsWith(v));
+  const sedi = (n, x) => n.startsWith(x) && !/^[a-z]/.test(n.slice(x.length));
+  return P.filter((p) => {
+    const n = bezBaum(p.money || p[1]);
+    return sedi(n, v) && !delsi.some((x) => sedi(n, x));
+  });
+}
+function odkazyVyrobku(dostupne, odstin) {
+  const odkazy = [];
+  for (const vyr of dostupne) {
+    const karty = kartyVyrobku(vyr, dostupne);
+    if (!karty.length) { odkazy.push(`<span class="vyr-ne" title="Tento výrobek zatím nemáme v nabídce">${esc(vyr)}</span>`); continue; }
+    const sk = STRUKT.get(karty[0][0])?.skupina;
+    const cile = sk && karty.every((k) => STRUKT.get(k[0])?.skupina === sk) ? [[SKUPINY.get(sk)[0], `Baumit ${vyr}`]] : karty.map((k) => [k, k[1]]);
+    for (const [k, txt] of cile) odkazy.push(`<a href="#/p/${esc(k[0])}" class="vyr-odkaz" data-odstin-prenos="${esc(odstin)}">${esc(txt)} →</a>`);
+  }
+  return odkazy.join("");
 }
 async function odstinKonfigurator(p) {
   const { data: zaklad } = await sb.rpc("baumit_odstin", { p_kod: p[0], p_odstin: null });
@@ -653,11 +679,18 @@ async function odstinKonfigurator(p) {
     </div>`;
   const inp = $("#odstinKod"), info = $("#odstinInfo");
   const prepocet = () => $(".qty", form)?.dispatchEvent(new Event("input", { bubbles: true }));
+  const boxCena = form.closest(".box");
+  // nelze = odstín u výrobku nevyrábí / neplatný kód → bez ceny a s neaktivním košíkem
+  const nelze = (ano) => {
+    boxCena?.classList.toggle("nelze", ano);
+    $$("button[type=submit], .step, .qty", form).forEach((b) => (b.disabled = ano));
+  };
   let n = 0, t;
   const vyhodnot = async () => {
     const v = inp.value.replace(/\D/g, "");
     const my = ++n;
     form._odstin = null;
+    nelze(false);
     prepocet();
     if (!v) { delete form.dataset.odstin; info.innerHTML = ""; return; }
     if (v.length < 4) { form.dataset.odstin = "chyba"; info.innerHTML = `<p class="note">Kód odstínu má 4 číslice.</p>`; return; }
@@ -665,22 +698,31 @@ async function odstinKonfigurator(p) {
     const { data: o, error } = await sb.rpc("baumit_odstin", { p_kod: p[0], p_odstin: v });
     if (my !== n) return;
     if (error || !o) { form.dataset.odstin = "chyba"; info.innerHTML = `<p class="note">Odstín se nepodařilo ověřit, zkuste to znovu.</p>`; return; }
-    if (!o.platny) { form.dataset.odstin = "chyba"; info.innerHTML = `<div class="warnbox">${esc(o.upozorneni[0])}</div>`; return; }
+    if (!o.platny) { form.dataset.odstin = "chyba"; nelze(true); info.innerHTML = `<div class="warnbox">${esc(o.upozorneni[0])}</div>`; return; }
+    const hlava = `<span class="swatch big" style="background:#${esc(o.hex)}"></span>
+        <div><b>${esc(o.odstin)}${o.nazev ? " " + esc(o.nazev) : ""}</b>${o.symbol ? ` <span title="symbol ve vzorníku Baumit Life">${esc(o.symbol)}</span>` : ""} · koncové číslo ${o.koncove}`;
+    if (!o.kompatibilni) {
+      form.dataset.odstin = "nelze";
+      nelze(true);
+      info.innerHTML = `
+        <div class="odstin-vysledek">${hlava}<br><b class="nelze-txt">Tento odstín Baumit u výrobku ${esc(o.vyrobek)} nevyrábí.</b></div></div>
+        <div class="warnbox">Odstín ${esc(o.odstin)} lze vyrobit v:<div class="vyr-odkazy">${odkazyVyrobku(o.dostupne_v, o.odstin)}</div></div>`;
+      return;
+    }
     form.dataset.odstin = "ok";
     form._odstin = o;
     prepocet();
     const firm = isFirm(), c = price(p), pp = priplatek(o);
     const sazba = firm ? o.sazba_bez : r2(o.sazba_bez * (1 + CONFIG.dph / 100));
     info.innerHTML = `
-      <div class="odstin-vysledek"><span class="swatch big" style="background:#${esc(o.hex)}"></span>
-        <div><b>${esc(o.odstin)}${o.nazev ? " " + esc(o.nazev) : ""}</b>${o.symbol ? ` <span title="symbol ve vzorníku Baumit Life">${esc(o.symbol)}</span>` : ""} · koncové číslo ${o.koncove}
+      <div class="odstin-vysledek">${hlava}
         <br>${pp ? `Příplatek za odstín ${kcAuto(sazba)} / ${esc(o.mj)} → <b>${kcAuto(firm ? pp.bez : pp.s)}</b> za balení ${num(o.baleni)} ${esc(o.mj)} ${dphTxt(firm)}`
           : o.sazba_bez > 0 ? `Příplatek za odstín ${kcAuto(sazba)} / ${esc(o.mj)} ${dphTxt(firm)} – dopočítáme v potvrzení` : "Bez příplatku za odstín"}
         ${c && pp ? `<br>Cena s odstínem: <b>${kcAuto(r2((firm ? c.bez : c.s) + (firm ? pp.bez : pp.s)))}</b> / bal. ${dphTxt(firm)}` : ""}</div></div>
       ${o.upozorneni.map((u) => `<div class="warnbox">${esc(u)}</div>`).join("")}`;
   };
   inp.addEventListener("input", () => { clearTimeout(t); t = setTimeout(vyhodnot, 250); });
-  if (odstinPrenos && odstinPrenos.skupina === STRUKT.get(p[0])?.skupina && odstinPrenos.kod) { inp.value = odstinPrenos.kod; vyhodnot(); }
+  if (odstinPrenos?.kod && (odstinPrenos.skupina === "*" || odstinPrenos.skupina === STRUKT.get(p[0])?.skupina)) { inp.value = odstinPrenos.kod; vyhodnot(); }
   odstinPrenos = null;
 }
 
@@ -1260,6 +1302,7 @@ app.addEventListener("submit", (e) => {
   if (!(q > 0)) { toast("Zadejte množství."); return; }
   if (f.dataset.odstin === "ceka") { toast("Ověřuji odstín, zkuste to za okamžik."); return; }
   if (f.dataset.odstin === "chyba") { toast("Zadejte platný kód odstínu Baumit Life, nebo pole nechte prázdné."); return; }
+  if (f.dataset.odstin === "nelze") { toast("Tento odstín u výrobku nelze vyrobit – vyberte jiný odstín nebo výrobek."); return; }
   addToCart(f.dataset.kod, q, f._odstin || null);
 });
 // −/+ u množství a přepočet řádku „celkem“
