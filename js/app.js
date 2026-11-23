@@ -222,15 +222,19 @@ function cartTotals(lines = cartLines()) {
 
 // ---------------------------------------------------------------- komponenty
 function card(p) {
-  const [kod, nazev, mj, , , , nad] = p;
+  let n = 0;
+  if (!Array.isArray(p)) ({ p, n } = p);  // sloučené struktury jednoho výrobku (sloucitStruktury)
+  const [kod, , mj, , , , nad] = p;
+  const nazev = n ? SKUPINY_NAZEV.get(STRUKT.get(kod).skupina) : p[1];
   return `<article class="p">
     <a class="p-ico" href="#/p/${esc(kod)}" aria-hidden="true" tabindex="-1">${OBR[kod] ? `<img src="${esc(OBR[kod].img)}" alt="" loading="lazy">` : ico(nad, 36)}</a>
     <a class="p-name" href="#/p/${esc(kod)}">${esc(nazev)}</a>
     ${OBR[kod]?.popis && OBR[kod].popis.length <= 90 ? `<div class="p-desc">${esc(OBR[kod].popis)}</div>` : ""}
-    ${katCislo(kod) ? `<div class="p-code">Kat. č. ${esc(katCislo(kod))}</div>` : ""}
+    ${katCislo(kod) && !n ? `<div class="p-code">Kat. č. ${esc(katCislo(kod))}</div>` : ""}
+    ${n ? `<a class="p-var" href="#/p/${esc(kod)}">${n} ${n < 5 ? "struktury" : "struktur"} · ${cenaHlavni(p) != null ? "od" : ""}</a>` : ""}
     ${priceHtml(p)}
     ${dostupnostHtml(p)}
-    ${buyForm(p)}
+    ${n ? `<a class="btn flex" href="#/p/${esc(kod)}">Vybrat strukturu</a>` : buyForm(p)}
   </article>`;
 }
 
@@ -438,7 +442,7 @@ function filtryHtml(items) {
 }
 
 function listing({ title, crumbs, items, side, subtiles }) {
-  const rows = sortRows(filtruj(items));
+  const rows = sloucitStruktury(sortRows(filtruj(items)));
   const filtry = items.length > 1 ? filtryHtml(items) : "";
   app.innerHTML = `
     <div class="crumbs">${crumbs}</div>
@@ -525,6 +529,7 @@ function product(kod) {
         <div class="box">
           ${priceHtml(p)}
           ${dostupnostHtml(p)}
+          ${strukturaHtml(p)}
           <div id="odstinBox"></div>
           ${buyForm(p, true)}
           <table class="facts">
@@ -545,6 +550,78 @@ function product(kod) {
   const nazevMoney = p.money || nazev;
   if (/^\s*baum/i.test(nazevMoney) && /top|color/i.test(nazevMoney)) odstinKonfigurator(p);
 }
+
+// ---------------------------------------------------------------- struktura omítek (ticket 011)
+// Karty jednoho výrobku, které se liší jen strukturou (zrnitá K / rýhovaná R a zrnitost; u CreativTop Trend/Silk/
+// Fine/Max), jsou v Money samostatné karty s vlastní cenou. Na kartě produktu se nabízejí jako přepínač „Struktura“,
+// ve výpisu se slučují do jedné dlaždice. Pozná se to z názvu v Money, např. „Baum.SilikonTop K 1,5mm 25kg“.
+// (+ minerální „Baum.open K 2mm škráb.strukt.om. 30kg“; jiný výrobek než openTop)
+const STRUKT_RE = /^\s*baum(?:it|\.)\s*([a-zá-ž]+top|open)\s+([kr])\s*(\d+(?:[.,]\d+)?)\s*(?:mm)?\b[^\d]*?(\d+)\s*k?g\b/i;
+const CREATIV_RE = /^\s*baum(?:it|\.)\s*(creativtop)\s+(trend|silk|fine|max)\b(?:\s*(\d+)\s*mm)?\s+(\d+)\s*kg\b/i;
+const STRUKT = new Map();   // kód karty → {skupina, popis, poradi, baleni}
+const SKUPINY = new Map();  // skupina (výrobek) → karty seřazené podle struktury
+const SKUPINY_NAZEV = new Map(); // skupina → obecný název pro sloučenou dlaždici, např. „Baumit SilikonTop 25 kg“
+function buildStruktury() {
+  for (const p of P) {
+    const n = p.money || p[1];
+    let m = n.match(STRUKT_RE), s = null;
+    if (m) {
+      const k = m[2].toUpperCase() === "K", zrn = +m[3].replace(",", ".");
+      s = { vyr: m[1], popis: `${k ? "zrnitá" : "rýhovaná"} ${num(zrn)} mm`, poradi: (k ? 0 : 100) + zrn, baleni: m[4] };
+    } else if ((m = n.match(CREATIV_RE))) {
+      s = { vyr: m[1], popis: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() + (m[3] ? ` ${m[3]} mm` : ""), poradi: 200, baleni: m[4] };
+    }
+    if (!s) continue;
+    s.skupina = norm(s.vyr);
+    STRUKT.set(p[0], s);
+    if (!SKUPINY.has(s.skupina)) SKUPINY.set(s.skupina, []);
+    SKUPINY.get(s.skupina).push(p);
+  }
+  for (const [sk, arr] of SKUPINY) {
+    if (arr.length < 2) { SKUPINY.delete(sk); arr.forEach((p) => STRUKT.delete(p[0])); continue; }
+    arr.sort((a, b) => STRUKT.get(a[0]).poradi - STRUKT.get(b[0]).poradi || STRUKT.get(a[0]).popis.localeCompare(STRUKT.get(b[0]).popis));
+    // různá balení v jedné skupině (SiliporTop 25/30 kg) → balení do popisu
+    const bal = new Set(arr.map((p) => STRUKT.get(p[0]).baleni));
+    if (bal.size > 1) arr.forEach((p) => { const x = STRUKT.get(p[0]); x.popis += ` · ${x.baleni} kg`; });
+    const vyr = (NAZ[arr[0][0]]?.n || "").match(/^Baumit\s+(\S+)/i)?.[1] || STRUKT.get(arr[0][0]).vyr;
+    SKUPINY_NAZEV.set(sk, `Baumit ${vyr}${bal.size === 1 ? ` ${[...bal][0]} kg` : ""}`);
+  }
+}
+const cenaHlavni = (p) => { const c = price(p); return c ? (isFirm() ? c.bez : c.s) : null; };
+function strukturaHtml(p) {
+  const s = STRUKT.get(p[0]);
+  if (!s) return "";
+  return `<div class="struktura"><div class="struktura-lbl">Struktura</div><div class="chips">${SKUPINY.get(s.skupina).map((x) => {
+    const c = cenaHlavni(x);
+    return `<a href="#/p/${esc(x[0])}" class="chip${x === p ? " on" : ""}" data-struktura="${esc(s.skupina)}">${esc(STRUKT.get(x[0]).popis)}<small>${c != null ? kcAuto(c) : "na dotaz"}</small></a>`;
+  }).join("")}</div></div>`;
+}
+// Ve výpisu: jedna dlaždice na výrobek (nejlevnější struktura z vybraných), na místě první z nich.
+function sloucitStruktury(rows) {
+  const skup = new Map();
+  for (const p of rows) {
+    const s = STRUKT.get(p[0]);
+    if (!s) continue;
+    const g = skup.get(s.skupina) || skup.set(s.skupina, []).get(s.skupina);
+    g.push(p);
+  }
+  const hotovo = new Set(), out = [];
+  for (const p of rows) {
+    const s = STRUKT.get(p[0]);
+    if (!s) { out.push(p); continue; }
+    if (hotovo.has(s.skupina)) continue;
+    hotovo.add(s.skupina);
+    const g = skup.get(s.skupina);
+    const rep = g.reduce((a, b) => (cenaHlavni(b) != null && (cenaHlavni(a) == null || cenaHlavni(b) < cenaHlavni(a)) ? b : a));
+    out.push(g.length > 1 ? Object.assign(Object.create(null), { p: rep, n: g.length }) : p);
+  }
+  return out;
+}
+let odstinPrenos = null; // odstín zadaný před přepnutím struktury → předvyplní se na kartě druhé struktury
+app.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-struktura]");
+  if (a) odstinPrenos = { skupina: a.dataset.struktura, kod: $("#odstinKod")?.value || "" };
+});
 
 // Popis a parametry od výrobce (skripty/nazvy.py → data/nazvy.json), jako „Popis / Parametry“ na dek.cz.
 function podkladyHtml(kod) {
@@ -603,6 +680,8 @@ async function odstinKonfigurator(p) {
       ${o.upozorneni.map((u) => `<div class="warnbox">${esc(u)}</div>`).join("")}`;
   };
   inp.addEventListener("input", () => { clearTimeout(t); t = setTimeout(vyhodnot, 250); });
+  if (odstinPrenos && odstinPrenos.skupina === STRUKT.get(p[0])?.skupina && odstinPrenos.kod) { inp.value = odstinPrenos.kod; vyhodnot(); }
+  odstinPrenos = null;
 }
 
 function cartPage() {
@@ -1222,6 +1301,7 @@ window.addEventListener("hashchange", () => route());
     P.forEach((p) => byKod.set(p[0], p));
     // oficiální název výrobce místo zkratky z Money; původní název zůstává ve vyhledávání (p.money)
     P.forEach((p) => { if (NAZ[p[0]]?.n) { p.money = p[1]; p[1] = NAZ[p[0]].n; } });
+    buildStruktury();
     searchIdx = P.map((p) => norm(`${p[1]} ${p.money || ""} ${p[0]} ${p[9] || ""} ${katOf(p)?.nazev || ""}`));
     await loadProfile();
     buildMega();

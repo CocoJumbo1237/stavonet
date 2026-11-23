@@ -379,3 +379,13 @@ table.items { width: 100%; border-collapse: collapse; background: var(--surface)
   .tools { gap: 4px; }
   .sortbtn { padding: 6px 8px; font-size: 13px; }
 }
+
+/* struktura omítek (ticket 011) */
+.struktura { margin: 0 0 12px; }
+.struktura-lbl { font-weight: 600; margin-bottom: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: grid; gap: 1px; padding: 7px 11px; border: 1px solid var(--line, #ddd); border-radius: 6px; color: inherit; text-decoration: none; font-size: 14px; line-height: 1.25; background: #fff; }
+.chip small { color: var(--muted); font-size: 12px; }
+.chip:hover { border-color: currentColor; }
+.chip.on { border: 2px solid var(--accent, #c4502b); padding: 6px 10px; font-weight: 600; }
+.p-var { font-size: 13px; color: var(--muted); text-decoration: none; }
