@@ -51,6 +51,9 @@ h1, h2, h3 { font-family: Poppins, Inter, sans-serif; font-weight: 800; letter-s
 .mega-item.on > a { color: #fff; box-shadow: inset 4px 0 0 var(--brand); }
 .mega-panel { display: none; background: #fff; color: var(--ink); }
 .mega-item.exp .mega-panel { display: block; }
+.mega-extra { display: grid; padding: 8px 0 12px; border-top: 1px solid rgba(255,255,255,.15); }
+.mega-extra a { color: #e5e5e5; text-decoration: none; padding: 10px 16px; font-size: 14.5px; font-weight: 600; }
+.mega-extra a:first-child { color: #fff; }
 .mega-panel-in { padding: 12px 18px; display: grid; gap: 12px; }
 .mega-panel h4 { margin: 0 0 4px; font-size: 14.5px; }
 .mega-panel h4 a { text-decoration: none; }
@@ -267,6 +270,51 @@ table.items { width: 100%; border-collapse: collapse; background: var(--surface)
   .items .num { text-align: left; }
   .pay { grid-template-columns: 1fr; }
   .shop { padding: 22px 20px; }
+
+  /* hlavička na jeden řádek: menu, logo, telefon, účet, košík */
+  .wrap { padding: 0 12px; }
+  .top-in { gap: 8px 2px; padding-top: 8px; padding-bottom: 10px; }
+  .hbtn { padding: 0 7px; min-height: 44px; }
+  .cart { padding: 0 10px; margin-left: 2px; }
+  .burger { padding: 8px 6px 8px 0; }
+  .logo { font-size: 27px; }
+  .logo svg { width: 14px; height: 19px; }
+
+  /* nadpisy */
+  .list-head h1, .pd h1 { font-size: 28px; }
+  .pd .price .main { font-size: 30px; }
+  .section-title { font-size: 22px; }
+  .hero h1 { font-size: 32px; }
+  .box { padding: 14px; }
+
+  /* úvod */
+  .usp { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .usp div { padding: 12px 14px; font-size: 13px; }
+  .usp b { font-size: 14px; }
+  .brands { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .brands a { min-height: 48px; font-size: 14px; }
+  .reviews-cta .btn, .shop-btns .btn { flex: 1 1 auto; }
+  .shop .row, .contact-info .row { max-width: none; }
+  .row.tel { min-height: 40px; align-items: center; }
+
+  /* podkategorie jako vodorovně posuvný pás */
+  .subtiles { flex-wrap: nowrap; overflow-x: auto; margin: 12px -12px 4px; padding: 0 12px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .subtiles::-webkit-scrollbar { display: none; }
+  .subtiles a { white-space: nowrap; flex: 0 0 auto; }
+
+  /* košík: název a odebrat nahoře, množství – cena – celkem pod tím */
+  .cart-items tr { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "name name x" "qty unit total"; align-items: center; gap: 6px 10px; padding: 12px; }
+  .cart-items td { padding: 0; }
+  .cart-items td:nth-child(1) { grid-area: name; }
+  .cart-items td:nth-child(2) { grid-area: qty; }
+  .cart-items td:nth-child(3) { grid-area: unit; color: var(--muted); }
+  .cart-items td:nth-child(4) { grid-area: total; text-align: right; }
+  .cart-items td:nth-child(5) { grid-area: x; align-self: start; }
+  .cart-items .qty { width: 72px; }
+
+  /* patička: větší odstupy odkazů pro prst */
+  .foot { padding: 28px 0; }
+  .foot p { line-height: 2; }
 }
 
 [hidden] { display: none !important; }

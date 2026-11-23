@@ -180,9 +180,13 @@ function buildMega() {
       <div class="mega-panel"><div class="mega-panel-in">
         ${n.kat.map((k) => `<div><h4><a href="#/k/${n.slug}/${k.slug}">${esc(k.nazev)}</a></h4>
           ${k.pod.length ? `<ul>${k.pod.map((pd) => `<li><a href="#/k/${n.slug}/${k.slug}/${pd.slug}">${esc(pd.nazev)}</a></li>`).join("")}</ul>` : ""}</div>`).join("")}
-        <div><h4><a href="#/k/${n.slug}">Vše: ${esc(n.nazev)} (${n.pocet}) →</a></h4></div>
+        <div><h4><a href="#/k/${n.slug}">Vše: ${esc(n.nazev)} →</a></h4></div>
       </div></div>
-    </div>`).join("")}</div>`;
+    </div>`).join("")}
+    <div class="mega-extra">
+      <a href="#/kontakt">Kontakt a prodejna</a>
+      ${CONFIG.telefony.map((t) => `<a href="${telHref(t.tel)}">Zavolat ${esc(t.jmeno)} · ${esc(telBez(t.tel))}</a>`).join("")}
+    </div></div>`;
   const mobile = () => matchMedia("(max-width: 1000px)").matches;
   $$(".mega-item > a").forEach((a) => a.addEventListener("click", (e) => {
     if (!mobile()) return;
@@ -190,7 +194,7 @@ function buildMega() {
     a.parentElement.classList.toggle("exp");
   }));
   $("#mega").addEventListener("click", (e) => {
-    if (e.target.closest(".mega-panel a")) { $("#mega").classList.remove("open"); }
+    if (e.target.closest(".mega-panel a, .mega-extra a")) { $("#mega").classList.remove("open"); }
   });
   $("#burger").onclick = () => {
     const open = $("#mega").classList.toggle("open");
@@ -421,7 +425,7 @@ function cartPage() {
     <div class="list-head"><h1>Košík</h1></div>
     <div class="cols">
       <div>
-        <table class="items">
+        <table class="items cart-items">
           <thead><tr><th>Zboží</th><th class="num">Množství</th><th class="num">Cena / MJ ${firm ? "bez DPH" : "s DPH"}</th><th class="num">Celkem</th><th></th></tr></thead>
           <tbody>${lines.map(({ p, q, c, bez, s }) => `<tr>
             <td><a href="#/p/${esc(p[0])}"><strong>${esc(p[1])}</strong></a><br><span class="note">Kód ${esc(p[0])}</span></td>
