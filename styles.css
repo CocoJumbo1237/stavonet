@@ -103,6 +103,7 @@ h1, h2, h3 { font-family: Poppins, Inter, sans-serif; font-weight: 800; letter-s
 .shop-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .row.tel { text-decoration: none; padding: 4px 0; }
 .row.tel b { color: var(--accent); }
+.warnbox { background: #fff3cd; border-left: 4px solid var(--warn); padding: 12px 14px; margin: 0 0 12px; }
 .terms { max-width: 820px; }
 .terms h2 { font-size: 20px; margin: 28px 0 8px; }
 .terms p, .terms li { line-height: 1.6; }

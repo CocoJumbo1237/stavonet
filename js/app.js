@@ -538,7 +538,7 @@ function checkout() {
     const v = Object.fromEntries(new FormData(f));
     const chyby = [];
     for (const [k, n] of [["jmeno", "jméno"], ["telefon", "telefon"], ["email", "e-mail"], ["ulice", "ulice"], ["mesto", "obec"], ["psc", "PSČ"]]) if (!String(v[k] || "").trim()) chyby.push(n);
-    if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) chyby.push("platný e-mail");
+    if (v.email && !EMAIL_RE.test(v.email.trim())) chyby.push("platný e-mail (bez diakritiky, např. jan.novak@email.cz)");
     if (v.doprava === "doprava" && !String(v.stavba || "").trim()) chyby.push("adresa stavby");
     if (v.ico && !icoOk(v.ico.trim())) chyby.push("platné IČ");
     if (!v.vop) chyby.push("souhlas s obchodními podmínkami");
@@ -557,6 +557,8 @@ function checkout() {
 }
 
 // Objednávka se zakládá na serveru (ceny a slevu počítá databáze), pak se pošlou e-maily.
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
 async function createOrder(v, lines) {
   const payload = {
     doprava: v.doprava, platba: v.platba,
@@ -571,7 +573,15 @@ async function createOrder(v, lines) {
   moje[data.cislo] = data;
   store.set("moje-objednavky", moje);
   setCart({});
-  sb.functions.invoke("objednavka-email", { body: { cislo: data.cislo } }).catch(() => {});
+  // počkat na odeslání e-mailů (max. 10 s), ať zákazník hned ví, jestli mu potvrzení dojde
+  const res = await Promise.race([
+    sb.functions.invoke("objednavka-email", { body: { cislo: data.cislo } }).then((r) => r.data || null).catch(() => null),
+    new Promise((ok) => setTimeout(() => ok(null), 10000)),
+  ]);
+  if (res && ["neplatny_email", "odmitnuto"].includes(res.duvod_zakaznik)) {
+    moje[data.cislo] = { ...data, emailChyba: res.duvod_zakaznik };
+    store.set("moje-objednavky", moje);
+  }
   return data;
 }
 
@@ -603,7 +613,8 @@ async function orderPage(cislo) {
     <div class="list-head"><h1>Objednávka ${esc(o.cislo)}</h1></div>
     <div class="cols">
       <div>
-        <p>Děkujeme. Potvrzení posíláme na <b>${esc(o.kontakt.email)}</b>. ${o.doprava === "odber" ? "Až bude zboží připravené k odběru, dáme vám vědět." : "Termín a cenu dopravy vám potvrdíme telefonicky."}</p>
+        ${(store.get("moje-objednavky", {})[o.cislo] || {}).emailChyba ? `<div class="warnbox"><b>Potvrzení e-mailem vám nepřišlo.</b> Adresu <b>${esc(o.kontakt.email)}</b> nelze doručit – nejspíš je v ní překlep nebo diakritika. Objednávku jsme přijali a ozveme se vám telefonicky; případně nám zavolejte na <a href="${telHref(CONFIG.telefony[0].tel)}">${esc(telBez(CONFIG.telefony[0].tel))}</a> nebo napište na <a href="mailto:${esc(CONFIG.email)}">${esc(CONFIG.email)}</a>.</div>` : ""}
+        <p>Děkujeme. ${(store.get("moje-objednavky", {})[o.cislo] || {}).emailChyba ? "" : `Potvrzení posíláme na <b>${esc(o.kontakt.email)}</b>.`} ${o.doprava === "odber" ? "Až bude zboží připravené k odběru, dáme vám vědět." : "Termín a cenu dopravy vám potvrdíme telefonicky."}</p>
         ${platbaInfo}
         <p class="note">Byli jste spokojeni? Budeme rádi za hodnocení – pomůže dalším zákazníkům. ${recenzeBtn("")}</p>
         <h2 class="section-title" style="font-size:24px">Položky</h2>
