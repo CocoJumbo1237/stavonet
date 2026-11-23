@@ -1,6 +1,7 @@
 // Stavonet – objednávkový systém stavebnin (MVP).
 // Katalog: data/katalog.json (skripty/strom.py ze skladových karet Money S3) – jen pro zobrazení.
-// Produkt = [kód, název, MJ, cena bez DPH | null, cena s DPH | null, množství skladem, nadkategorie, kategorie, podkategorie]
+// Produkt = [kód, název, MJ, cena bez DPH | null, cena s DPH | null, množství skladem, nadkategorie, kategorie, podkategorie, katalogové číslo výrobce | ""]
+// Interní kód (p[0]) je klíč pro košík, Supabase a Money – zákazníkovi se neukazuje, vidí katalogové číslo výrobce.
 // Účty, objednávky a výpočet cen: Supabase (RPC vytvor_objednavku počítá ceny na serveru). Košík je v localStorage.
 
 const CONFIG = {
@@ -85,6 +86,7 @@ const ico = (id, size = 24) =>
 
 // ---------------------------------------------------------------- data
 let STROM = [], P = [], byKod = new Map(), nadById = new Map(), searchIdx = [];
+const katCislo = (kod) => byKod.get(kod)?.[9] || "";
 let OBR = {}; // kód → {img, popis, list} z feedů výrobců (skripty/baumit_feed.py)
 let RECENZE = null; // {hodnoceni, pocet, recenze: [{jmeno, hvezdy, text}]} z data/recenze.json
 const katOf = (p) => nadById.get(p[6])?.kat.find((k) => k.slug === p[7]);
@@ -110,7 +112,7 @@ function updateHeader() {
   $("#adminBtn").hidden = !isAdmin();
   const t = cartTotals();
   $("#cartCount").textContent = t.count;
-  $("#cartTotal").textContent = isFirm() ? kc(t.bez) + " bez DPH" : kc(t.s);
+  $("#cartTotal").textContent = kc(t.bez) + " bez DPH";
 }
 
 // ---------------------------------------------------------------- ceny
@@ -129,9 +131,8 @@ function priceHtml(p) {
   const mj = esc(p[2]);
   if (!c) return `<div class="price ask"><div class="main">Cena na dotaz</div><div class="alt">nacenime v objednávce</div></div>`;
   const tag = c.sleva ? `<span class="yourprice">Vaše cena −${c.sleva} %</span>` : "";
-  if (isFirm())
-    return `<div class="price">${tag}<div class="main">${kcAuto(c.bez)} <small>/ ${mj} bez DPH</small>${c.sleva ? `<span class="old">${kcAuto(c.listBez)}</span>` : ""}</div><div class="alt">${kcAuto(c.s)} s DPH</div></div>`;
-  return `<div class="price"><div class="main">${kcAuto(c.s)} <small>/ ${mj}</small></div></div>`;
+  // výchozí zobrazení pro všechny: cena bez DPH, s DPH jako druhý řádek
+  return `<div class="price">${tag}<div class="main">${kcAuto(c.bez)} <small>/ ${mj} bez DPH</small>${c.sleva ? `<span class="old">${kcAuto(c.listBez)}</span>` : ""}</div><div class="alt">${kcAuto(c.s)} s DPH</div></div>`;
 }
 
 // ---------------------------------------------------------------- košík
@@ -164,7 +165,7 @@ function card(p) {
   return `<article class="p">
     <a class="p-ico" href="#/p/${esc(kod)}" aria-hidden="true" tabindex="-1">${OBR[kod] ? `<img src="${esc(OBR[kod].img)}" alt="" loading="lazy">` : ico(nad, 36)}</a>
     <a class="p-name" href="#/p/${esc(kod)}">${esc(nazev)}</a>
-    <div class="p-code">Kód ${esc(kod)}</div>
+    ${katCislo(kod) ? `<div class="p-code">Kat. č. ${esc(katCislo(kod))}</div>` : ""}
     ${priceHtml(p)}
     <form class="buy" data-kod="${esc(kod)}">
       <input class="qty" type="number" min="0.001" step="any" value="1" aria-label="Množství v ${esc(mj)}">
@@ -397,7 +398,8 @@ function product(kod) {
             <button class="btn flex big" type="submit">Do košíku</button>
           </form>
           <table class="facts">
-            <tr><td>Kód zboží</td><td>${esc(kod)}</td></tr>
+            ${katCislo(kod) ? `<tr><td>Katalogové číslo</td><td>${esc(katCislo(kod))}</td></tr>` : ""}
+            ${isAdmin() ? `<tr><td>Interní kód</td><td>${esc(kod)}</td></tr>` : ""}
             <tr><td>Měrná jednotka</td><td>${esc(mj)}</td></tr>
             <tr><td>Kategorie</td><td>${esc(nad.nazev)}${kat ? " › " + esc(kat.nazev) : ""}${pod ? " › " + esc(pod.nazev) : ""}</td></tr>
             <tr><td>Sazba DPH</td><td>${CONFIG.dph} %</td></tr>
@@ -414,7 +416,6 @@ function cartPage() {
   markMega();
   const lines = cartLines();
   const t = cartTotals(lines);
-  const firm = isFirm();
   if (!lines.length) {
     app.innerHTML = `<div class="crumbs"><a href="#/">Úvod</a> / Košík</div><div class="list-head"><h1>Košík</h1></div>
       <div class="empty" style="margin:18px 0 40px">Košík je prázdný. <a href="#/">Pokračovat v nákupu</a></div>`;
@@ -426,12 +427,12 @@ function cartPage() {
     <div class="cols">
       <div>
         <table class="items cart-items">
-          <thead><tr><th>Zboží</th><th class="num">Množství</th><th class="num">Cena / MJ ${firm ? "bez DPH" : "s DPH"}</th><th class="num">Celkem</th><th></th></tr></thead>
+          <thead><tr><th>Zboží</th><th class="num">Množství</th><th class="num">Cena / MJ bez DPH</th><th class="num">Celkem bez DPH</th><th></th></tr></thead>
           <tbody>${lines.map(({ p, q, c, bez, s }) => `<tr>
-            <td><a href="#/p/${esc(p[0])}"><strong>${esc(p[1])}</strong></a><br><span class="note">Kód ${esc(p[0])}</span></td>
+            <td><a href="#/p/${esc(p[0])}"><strong>${esc(p[1])}</strong></a>${katCislo(p[0]) ? `<br><span class="note">Kat. č. ${esc(katCislo(p[0]))}</span>` : ""}</td>
             <td class="num"><input class="qty" type="number" min="0.001" step="any" value="${q}" data-kod="${esc(p[0])}"> ${esc(p[2])}</td>
-            <td class="num">${c ? kcAuto(firm ? c.bez : c.s) : "na dotaz"}</td>
-            <td class="num"><strong>${c ? kc(firm ? bez : s, true) : "–"}</strong></td>
+            <td class="num">${c ? kcAuto(c.bez) : "na dotaz"}</td>
+            <td class="num"><strong>${c ? kc(bez, true) : "–"}</strong></td>
             <td><button class="x" data-del="${esc(p[0])}" aria-label="Odebrat">×</button></td>
           </tr>`).join("")}</tbody>
         </table>
@@ -639,9 +640,15 @@ async function orderPage(cislo) {
     </div>`;
 }
 
-function orderItems(o) {
+// admin: interní kód (vychystání, Money) i katalogové číslo (objednání u dodavatele); zákazník jen katalogové číslo
+function kodyPolozky(kod, admin) {
+  const k = [katCislo(kod) && `Kat. č. ${esc(katCislo(kod))}`, admin && `Interní kód ${esc(kod)}`].filter(Boolean).join(" · ");
+  return k ? `<br><span class="note">${k}</span>` : "";
+}
+
+function orderItems(o, admin = false) {
   return `<table class="items"><thead><tr><th>Zboží</th><th class="num">Množství</th><th class="num">Cena / MJ bez DPH</th><th class="num">Celkem bez DPH</th></tr></thead><tbody>
-    ${o.polozky.map((i) => `<tr><td>${esc(i.nazev)}<br><span class="note">Kód ${esc(i.kod)}</span></td><td class="num">${num(+i.mnozstvi)} ${esc(i.mj)}</td><td class="num">${i.cena_bez != null ? kcAuto(+i.cena_bez) : "na dotaz"}</td><td class="num">${i.bez != null ? kc(+i.bez, true) : "–"}</td></tr>`).join("")}
+    ${o.polozky.map((i) => `<tr><td>${esc(i.nazev)}${kodyPolozky(i.kod, admin)}</td><td class="num">${num(+i.mnozstvi)} ${esc(i.mj)}</td><td class="num">${i.cena_bez != null ? kcAuto(+i.cena_bez) : "na dotaz"}</td><td class="num">${i.bez != null ? kc(+i.bez, true) : "–"}</td></tr>`).join("")}
   </tbody></table>`;
 }
 
@@ -747,12 +754,12 @@ async function accountPage() {
     <div class="cols">
       <div>
         <h2 class="section-title" style="margin-top:14px;font-size:26px">Moje objednávky</h2>
-        ${orders.length ? `<table class="items"><thead><tr><th>Číslo</th><th>Datum</th><th>Stav</th><th class="num">Celkem ${isFirm(u) ? "bez DPH" : "s DPH"}</th><th></th></tr></thead><tbody>
+        ${orders.length ? `<table class="items"><thead><tr><th>Číslo</th><th>Datum</th><th>Stav</th><th class="num">Celkem bez DPH</th><th></th></tr></thead><tbody>
           ${orders.map((o) => `<tr>
             <td><a href="#/objednavka/${esc(o.cislo)}"><b>${esc(o.cislo)}</b></a></td>
             <td>${new Date(o.vytvoreno).toLocaleDateString("cs-CZ")}</td>
             <td>${stavBadge(o.stav)}</td>
-            <td class="num">${kc(+(isFirm(u) ? o.bez : o.s), true)}</td>
+            <td class="num">${kc(+o.bez, true)}</td>
             <td class="num"><button class="btn ghost" data-re="${esc(o.cislo)}">Objednat znovu</button></td>
           </tr>`).join("")}</tbody></table>`
           : `<div class="empty">Zatím žádné objednávky. <a href="#/">Jít nakupovat</a></div>`}
@@ -837,7 +844,7 @@ async function adminOrder(cislo) {
     <div class="list-head"><h1>Objednávka ${esc(o.cislo)}</h1><span class="muted">${new Date(o.vytvoreno).toLocaleString("cs-CZ")}</span></div>
     <div class="cols">
       <div>
-        ${orderItems(o)}
+        ${orderItems(o, true)}
         <table class="sum" style="margin-top:12px;max-width:340px;margin-left:auto">
           ${+o.sleva ? `<tr><td>Firemní sleva</td><td>${+o.sleva} %</td></tr>` : ""}
           <tr><td>Bez DPH</td><td>${kc(+o.bez, true)}</td></tr><tr><td>DPH</td><td>${kc(+o.dph, true)}</td></tr>
@@ -979,7 +986,7 @@ window.addEventListener("hashchange", () => route());
 (async () => {
   try {
     const [d, obr, rec] = await Promise.all([
-      fetch("data/katalog.json?v=5").then((r) => r.json()),
+      fetch("data/katalog.json?v=6").then((r) => r.json()),
       fetch("data/obrazky.json?v=3").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/recenze.json?v=1").then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
@@ -990,7 +997,7 @@ window.addEventListener("hashchange", () => route());
     P = d.produkty;
     STROM.forEach((n) => nadById.set(n.id, n));
     P.forEach((p) => byKod.set(p[0], p));
-    searchIdx = P.map((p) => norm(`${p[1]} ${p[0]} ${katOf(p)?.nazev || ""}`));
+    searchIdx = P.map((p) => norm(`${p[1]} ${p[0]} ${p[9] || ""} ${katOf(p)?.nazev || ""}`));
     await loadProfile();
     buildMega();
     updateHeader();
