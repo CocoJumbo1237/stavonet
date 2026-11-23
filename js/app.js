@@ -130,7 +130,7 @@ function price(p) {
 function priceHtml(p) {
   const c = price(p);
   const mj = esc(p[2]);
-  if (!c) return `<div class="price ask"><div class="main">Cena na dotaz</div><div class="alt">nacenime v objednávce</div></div>`;
+  if (!c) return `<div class="price ask"><div class="main">Cena na dotaz</div><div class="alt">naceníme v objednávce</div></div>`;
   const tag = c.sleva ? `<span class="yourprice">Vaše cena −${c.sleva} %</span>` : "";
   // Spotřebitel musí jako hlavní (nejvýraznější) cenu vidět konečnou cenu s DPH (zákon o cenách);
   // cena bez DPH smí být jen menší pod ní. Ověřené firmy vidí jako hlavní cenu bez DPH.
@@ -367,39 +367,109 @@ function home() {
     </div>`;
 }
 
-const listState = { sort: "nazev", shown: PAGE };
+// Filtry výpisu (výrobce, cena, skladem) – platí pro aktuální stránku, při přechodu jinam se vynulují (route()).
+const listState = { sort: "doporucene", shown: PAGE, vyrobce: new Set(), od: null, do: null, skladem: false };
+function resetFiltry() { listState.vyrobce = new Set(); listState.od = listState.do = null; listState.skladem = false; }
+
+// Výrobce z názvu (oficiálního i z Money). Pořadí: delší / jednoznačnější vzory dřív.
+const VYROBCI = [
+  ["Baumit", /^(baumit|baum\.|bau\b)/i], ["Den Braven", /^(den braven|den b\b)|\bdb$/i], ["Weber", /^weber/i],
+  ["Mapei", /^mapei/i], ["Knauf", /^(knauf|kn\b)|\bknauf\b/i], ["Isover", /^(isover|orsil|orsik|orset)/i],
+  ["Rockwool", /^(rockwool|rockmin|airrock|frontrock|fasrock|steprock|techrock)/i], ["URSA", /^ursa/i],
+  ["Paroc", /^paroc/i], ["Steico", /^steico/i], ["Ytong", /^(ytong|ytong)/i], ["Hebel", /^hebel/i],
+  ["Porotherm", /^porotherm/i], ["HELUZ", /^heluz/i], ["KMB", /^(kmb|km beta)/i], ["Porfix", /^porfix/i],
+  ["Winklmann", /^win\b|winklmann/i], ["Qpor", /qpor/i], ["Hasit", /^ha[- ]|^ha$/i], ["Quick-mix", /^(q\b|quick|sx[kr]\b|khk\b|bup\b|mrp\b|msp\b|khr\b)/i],
+  ["Ceresit", /^ceresit/i], ["Primalex", /primalex/i], ["Keim", /keim/i], ["Rigips", /^rigips|^rigi/i],
+  ["Fermacell", /^fermacel/i], ["Cetris", /^cetris/i], ["Schiedel", /^(sch\b|schiedel)/i], ["Schomburg", /^scho\b/i],
+  ["Remmers", /^rem\b/i], ["Sika", /^sika/i], ["MAS", /^mas\b/i], ["RAW", /^raw\b/i], ["Hilti", /^hilti/i],
+  ["EJOT", /ejot/i], ["Koelner", /koelner/i], ["CS-Beton", /^(cs-beton|csb\b)/i], ["Gutmann", /gutmann/i],
+  ["PUREN", /^puren/i], ["Kingspan", /kooltherm|kingspan/i], ["Liapor", /liapor/i], ["Cemix", /^cem\b|cemix/i],
+];
+function vyrobce(p) {
+  for (const [n, rx] of VYROBCI) if (rx.test(p[1]) || (p.money && rx.test(p.money))) return n;
+  return null;
+}
+
 function sortRows(rows) {
   const s = listState.sort;
   const pr = (p) => p[3] ?? null;
-  if (s === "nazev") return rows.slice().sort((a, b) => a[1].localeCompare(b[1], "cs"));
+  const jmeno = (a, b) => a[1].localeCompare(b[1], "cs");
+  if (s === "nazev") return rows.slice().sort(jmeno);
   if (s === "levne") return rows.slice().sort((a, b) => (pr(a) ?? 1e12) - (pr(b) ?? 1e12));
   if (s === "drahe") return rows.slice().sort((a, b) => (pr(b) ?? -1) - (pr(a) ?? -1));
-  return rows;
+  // doporučené: nejdřív zboží s fotkou a cenou, pak skladem, pak podle názvu
+  const skore = (p) => (OBR[p[0]] ? 2 : 0) + (p[3] != null ? 2 : 0) + (p[5] > 0 ? 1 : 0);
+  return rows.slice().sort((a, b) => skore(b) - skore(a) || jmeno(a, b));
+}
+
+function filtruj(items, bezVyrobce = false) {
+  const { od, do: doCeny, skladem, vyrobce: vyr } = listState;
+  return items.filter((p) => {
+    if (skladem && !(p[5] > 0)) return false;
+    if (od != null || doCeny != null) {
+      const c = price(p);
+      if (!c) return false;
+      const v = isFirm() ? c.bez : c.s;
+      if (od != null && v < od) return false;
+      if (doCeny != null && v > doCeny) return false;
+    }
+    if (!bezVyrobce && vyr.size && !vyr.has(vyrobce(p) || "Ostatní")) return false;
+    return true;
+  });
+}
+
+function filtryHtml(items) {
+  // počty výrobců z položek po ostatních filtrech (jako na dek.cz), aktuálně vybraní zůstávají vidět
+  const pocty = new Map();
+  for (const p of filtruj(items, true)) { const v = vyrobce(p) || "Ostatní"; pocty.set(v, (pocty.get(v) || 0) + 1); }
+  listState.vyrobce.forEach((v) => pocty.has(v) || pocty.set(v, 0));
+  const vyr = [...pocty].sort((a, b) => (a[0] === "Ostatní") - (b[0] === "Ostatní") || b[1] - a[1] || a[0].localeCompare(b[0], "cs"));
+  const aktivni = listState.vyrobce.size || listState.od != null || listState.do != null || listState.skladem;
+  const otevreno = window.matchMedia("(min-width: 761px)").matches || aktivni;
+  return `<details class="filtry" ${otevreno ? "open" : ""}>
+    <summary>Filtry${aktivni ? ` <span class="badge">aktivní</span>` : ""}</summary>
+    <div class="f-grp"><label class="f-check"><input type="checkbox" id="fSklad" ${listState.skladem ? "checked" : ""}> Jen skladem na prodejně</label></div>
+    <div class="f-grp"><h3>Cena ${isFirm() ? "bez DPH" : "s DPH"} (Kč)</h3>
+      <div class="f-cena"><input id="fOd" type="number" min="0" inputmode="numeric" placeholder="od" value="${listState.od ?? ""}"><span>–</span><input id="fDo" type="number" min="0" inputmode="numeric" placeholder="do" value="${listState.do ?? ""}"></div></div>
+    ${vyr.length > 1 || listState.vyrobce.size ? `<div class="f-grp"><h3>Výrobce</h3>${vyr.map(([v, n]) => `<label class="f-check"><input type="checkbox" data-vyr="${esc(v)}" ${listState.vyrobce.has(v) ? "checked" : ""}> ${esc(v)} <span>${n}</span></label>`).join("")}</div>` : ""}
+    ${aktivni ? `<button class="btn ghost f-zrusit" id="fZrusit" type="button">Zrušit filtry</button>` : ""}
+  </details>`;
 }
 
 function listing({ title, crumbs, items, side, subtiles }) {
-  const rows = sortRows(items);
+  const rows = sortRows(filtruj(items));
+  const filtry = items.length > 1 ? filtryHtml(items) : "";
   app.innerHTML = `
     <div class="crumbs">${crumbs}</div>
     <div class="list-head"><h1>${esc(title)}</h1><span class="muted">${rows.length.toLocaleString("cs-CZ")} položek</span></div>
     ${subtiles || ""}
-    <div class="layout" style="${side ? "" : "grid-template-columns:1fr"}">
-      ${side || ""}
+    <div class="layout" style="${side || filtry ? "" : "grid-template-columns:1fr"}">
+      ${side || filtry ? `<div class="side-col">${filtry}${side || ""}</div>` : ""}
       <section>
         <div class="tools">
-          <label>Řadit <select id="sort">
-            <option value="nazev">podle názvu</option>
-            <option value="levne">od nejlevnějšího</option>
-            <option value="drahe">od nejdražšího</option>
-          </select></label>
+          <span class="tools-lbl">Řadit:</span>
+          ${[["doporucene", "Doporučujeme"], ["levne", "Nejlevnější"], ["drahe", "Nejdražší"], ["nazev", "Podle názvu"]]
+            .map(([v, t]) => `<button type="button" class="sortbtn ${listState.sort === v ? "on" : ""}" data-sort="${v}">${t}</button>`).join("")}
         </div>
         ${rows.length ? `<div class="products">${rows.slice(0, listState.shown).map(card).join("")}</div>`
           : `<div class="empty">Nic jsme nenašli. Zkuste jiný výraz nebo nám zavolejte – zboží rádi objednáme.</div>`}
         ${rows.length > listState.shown ? `<div class="more"><button class="btn dark" id="more">Zobrazit další (${(rows.length - listState.shown).toLocaleString("cs-CZ")})</button></div>` : ""}
       </section>
     </div>`;
-  $("#sort").value = listState.sort;
-  $("#sort").onchange = (e) => { listState.sort = e.target.value; listState.shown = PAGE; route(); };
+  const prekresli = () => { listState.shown = PAGE; route(true); };
+  $$(".sortbtn", app).forEach((b) => (b.onclick = () => { listState.sort = b.dataset.sort; prekresli(); }));
+  const fs = $("#fSklad");
+  if (fs) {
+    fs.onchange = () => { listState.skladem = fs.checked; prekresli(); };
+    const cena = (el) => (el.value === "" ? null : Math.max(0, +el.value));
+    ["#fOd", "#fDo"].forEach((id) => ($(id).onchange = () => { listState.od = cena($("#fOd")); listState.do = cena($("#fDo")); prekresli(); }));
+    $$("[data-vyr]", app).forEach((c) => (c.onchange = () => {
+      c.checked ? listState.vyrobce.add(c.dataset.vyr) : listState.vyrobce.delete(c.dataset.vyr);
+      prekresli();
+    }));
+    const z = $("#fZrusit");
+    if (z) z.onclick = () => { resetFiltry(); prekresli(); };
+  }
   const more = $("#more");
   if (more) more.onclick = () => { listState.shown += PAGE; route(true); };
 }
@@ -420,8 +490,10 @@ function category(nadSlug, katSlug, podSlug) {
   const side = sortiment(nad, kat, pod);
 
   let subtiles = "";
-  if (!kat) subtiles = `<div class="subtiles">${nad.kat.map((k) => `<a href="${base}/${k.slug}">${esc(k.nazev)}</a>`).join("")}</div>`;
-  else if (kat.pod.length) subtiles = `<div class="subtiles"><a href="${base}/${kat.slug}" class="${pod ? "" : "on"}">Vše</a>${kat.pod.map((x) => `<a href="${base}/${kat.slug}/${x.slug}" class="${x === pod ? "on" : ""}">${esc(x.nazev)}</a>`).join("")}</div>`;
+  // dlaždice podkategorií s počtem položek (dek.cz); na 3. úrovni „Vše“ + typy výrobku
+  const n = (x) => ` <span>${x.pocet}</span>`;
+  if (!kat) subtiles = `<div class="subtiles">${nad.kat.map((k) => `<a href="${base}/${k.slug}">${esc(k.nazev)}${n(k)}</a>`).join("")}</div>`;
+  else if (kat.pod.length) subtiles = `<div class="subtiles"><a href="${base}/${kat.slug}" class="${pod ? "" : "on"}">Vše${n(kat)}</a>${kat.pod.map((x) => `<a href="${base}/${kat.slug}/${x.slug}" class="${x === pod ? "on" : ""}">${esc(x.nazev)}${n(x)}</a>`).join("")}</div>`;
 
   listing({ title: (pod || kat || nad).nazev, crumbs: crumbs.join(" / "), items, side, subtiles });
 }
@@ -1070,7 +1142,7 @@ function route(keepScroll) {
   const [rawPath, query = ""] = h.split("?");
   const path = decodeURIComponent(rawPath);
   const params = new URLSearchParams(query);
-  if (path !== lastPath) { listState.shown = PAGE; lastPath = path; }
+  if (path !== lastPath) { listState.shown = PAGE; lastPath = path; resetFiltry(); }
   const parts = path.split("/").filter(Boolean);
   if (parts[0] !== "hledat") $("#q").value = "";
   $("#mega").classList.remove("open");
@@ -1131,7 +1203,7 @@ window.addEventListener("hashchange", () => route());
 (async () => {
   try {
     const [d, obr, naz, rec] = await Promise.all([
-      fetch("data/katalog.json?v=7").then((r) => r.json()),
+      fetch("data/katalog.json?v=8").then((r) => r.json()),
       fetch("data/obrazky.json?v=3").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/nazvy.json?v=1").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/recenze.json?v=1").then((r) => (r.ok ? r.json() : null)).catch(() => null),

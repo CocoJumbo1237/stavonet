@@ -353,3 +353,29 @@ table.items { width: 100%; border-collapse: collapse; background: var(--surface)
   .pd-info { grid-template-columns: 1fr; }
   .p .buy .btn { flex-basis: 100%; }
 }
+
+/* Výpis kategorie po vzoru dek.cz: filtry (skladem, cena, výrobce), řazení tlačítky, počty v dlaždicích */
+.side-col { display: grid; gap: 16px; align-self: start; }
+.subtiles a span { font-weight: 400; color: var(--muted); font-size: 12.5px; margin-left: 2px; }
+.subtiles a.on span { color: #c9cdd2; }
+.tools-lbl { font-size: 13px; color: var(--muted); }
+.sortbtn { background: none; border: 1px solid transparent; padding: 6px 12px; font: inherit; font-size: 14px; cursor: pointer; color: var(--ink); border-radius: var(--radius); }
+.sortbtn:hover { border-color: var(--line2); }
+.sortbtn.on { background: var(--soft); border-color: var(--line); font-weight: 600; }
+.filtry { border: 1px solid var(--line); background: #fff; }
+.filtry summary { cursor: pointer; padding: 12px 16px; font-weight: 700; list-style: none; display: flex; gap: 8px; align-items: center; }
+.filtry summary::-webkit-details-marker { display: none; }
+.filtry summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
+.filtry[open] summary::after { content: "▴"; }
+.f-grp { border-top: 1px solid var(--line); padding: 12px 16px; display: grid; gap: 6px; }
+.f-grp h3 { margin: 0 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.f-check { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.f-check span { margin-left: auto; color: var(--muted); font-size: 12px; }
+.f-cena { display: flex; gap: 6px; align-items: center; }
+.f-cena input { width: 100%; min-width: 0; padding: 7px 8px; }
+.f-zrusit { margin: 0 16px 14px; }
+@media (max-width: 760px) {
+  .side-col { gap: 0; }
+  .tools { gap: 4px; }
+  .sortbtn { padding: 6px 8px; font-size: 13px; }
+}
