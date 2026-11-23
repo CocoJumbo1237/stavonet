@@ -112,7 +112,7 @@ function updateHeader() {
   $("#adminBtn").hidden = !isAdmin();
   const t = cartTotals();
   $("#cartCount").textContent = t.count;
-  $("#cartTotal").textContent = kc(t.bez) + " bez DPH";
+  $("#cartTotal").textContent = isFirm() ? kc(t.bez) + " bez DPH" : kc(t.s);
 }
 
 // ---------------------------------------------------------------- ceny
@@ -131,8 +131,11 @@ function priceHtml(p) {
   const mj = esc(p[2]);
   if (!c) return `<div class="price ask"><div class="main">Cena na dotaz</div><div class="alt">nacenime v objednávce</div></div>`;
   const tag = c.sleva ? `<span class="yourprice">Vaše cena −${c.sleva} %</span>` : "";
-  // výchozí zobrazení pro všechny: cena bez DPH, s DPH jako druhý řádek
-  return `<div class="price">${tag}<div class="main">${kcAuto(c.bez)} <small>/ ${mj} bez DPH</small>${c.sleva ? `<span class="old">${kcAuto(c.listBez)}</span>` : ""}</div><div class="alt">${kcAuto(c.s)} s DPH</div></div>`;
+  // Spotřebitel musí jako hlavní (nejvýraznější) cenu vidět konečnou cenu s DPH (zákon o cenách);
+  // cena bez DPH smí být jen menší pod ní. Ověřené firmy vidí jako hlavní cenu bez DPH.
+  if (isFirm())
+    return `<div class="price">${tag}<div class="main">${kcAuto(c.bez)} <small>/ ${mj} bez DPH</small>${c.sleva ? `<span class="old">${kcAuto(c.listBez)}</span>` : ""}</div><div class="alt">${kcAuto(c.s)} s DPH</div></div>`;
+  return `<div class="price"><div class="main">${kcAuto(c.s)} <small>/ ${mj} s DPH</small></div><div class="alt">${kcAuto(c.bez)} bez DPH</div></div>`;
 }
 
 // ---------------------------------------------------------------- košík
@@ -245,7 +248,7 @@ async function termsPage() {
   markMega();
   app.innerHTML = `<div class="crumbs"><a href="#/">Úvod</a> / Obchodní podmínky</div><div class="list-head"><h1>Obchodní podmínky</h1></div><div class="terms" id="terms">Načítám…</div>`;
   // vlastní statický soubor z webu (ne uživatelský obsah)
-  const html = await fetch("data/obchodni-podminky.html?v=1").then((r) => (r.ok ? r.text() : null)).catch(() => null);
+  const html = await fetch("data/obchodni-podminky.html?v=2").then((r) => (r.ok ? r.text() : null)).catch(() => null);
   const el = $("#terms");
   if (el) el.innerHTML = html || `Obchodní podmínky se nepodařilo načíst. Napište nám na <a href="mailto:${esc(CONFIG.email)}">${esc(CONFIG.email)}</a>.`;
 }
@@ -416,6 +419,7 @@ function cartPage() {
   markMega();
   const lines = cartLines();
   const t = cartTotals(lines);
+  const firm = isFirm();
   if (!lines.length) {
     app.innerHTML = `<div class="crumbs"><a href="#/">Úvod</a> / Košík</div><div class="list-head"><h1>Košík</h1></div>
       <div class="empty" style="margin:18px 0 40px">Košík je prázdný. <a href="#/">Pokračovat v nákupu</a></div>`;
@@ -427,12 +431,12 @@ function cartPage() {
     <div class="cols">
       <div>
         <table class="items cart-items">
-          <thead><tr><th>Zboží</th><th class="num">Množství</th><th class="num">Cena / MJ bez DPH</th><th class="num">Celkem bez DPH</th><th></th></tr></thead>
+          <thead><tr><th>Zboží</th><th class="num">Množství</th><th class="num">Cena / MJ ${firm ? "bez DPH" : "s DPH"}</th><th class="num">Celkem ${firm ? "bez DPH" : "s DPH"}</th><th></th></tr></thead>
           <tbody>${lines.map(({ p, q, c, bez, s }) => `<tr>
             <td><a href="#/p/${esc(p[0])}"><strong>${esc(p[1])}</strong></a>${katCislo(p[0]) ? `<br><span class="note">Kat. č. ${esc(katCislo(p[0]))}</span>` : ""}</td>
             <td class="num"><input class="qty" type="number" min="0.001" step="any" value="${q}" data-kod="${esc(p[0])}"> ${esc(p[2])}</td>
-            <td class="num">${c ? kcAuto(c.bez) : "na dotaz"}</td>
-            <td class="num"><strong>${c ? kc(bez, true) : "–"}</strong></td>
+            <td class="num">${c ? kcAuto(firm ? c.bez : c.s) : "na dotaz"}</td>
+            <td class="num"><strong>${c ? kc(firm ? bez : s, true) : "–"}</strong></td>
             <td><button class="x" data-del="${esc(p[0])}" aria-label="Odebrat">×</button></td>
           </tr>`).join("")}</tbody>
         </table>
@@ -754,12 +758,12 @@ async function accountPage() {
     <div class="cols">
       <div>
         <h2 class="section-title" style="margin-top:14px;font-size:26px">Moje objednávky</h2>
-        ${orders.length ? `<table class="items"><thead><tr><th>Číslo</th><th>Datum</th><th>Stav</th><th class="num">Celkem bez DPH</th><th></th></tr></thead><tbody>
+        ${orders.length ? `<table class="items"><thead><tr><th>Číslo</th><th>Datum</th><th>Stav</th><th class="num">Celkem ${isFirm(u) ? "bez DPH" : "s DPH"}</th><th></th></tr></thead><tbody>
           ${orders.map((o) => `<tr>
             <td><a href="#/objednavka/${esc(o.cislo)}"><b>${esc(o.cislo)}</b></a></td>
             <td>${new Date(o.vytvoreno).toLocaleDateString("cs-CZ")}</td>
             <td>${stavBadge(o.stav)}</td>
-            <td class="num">${kc(+o.bez, true)}</td>
+            <td class="num">${kc(+(isFirm(u) ? o.bez : o.s), true)}</td>
             <td class="num"><button class="btn ghost" data-re="${esc(o.cislo)}">Objednat znovu</button></td>
           </tr>`).join("")}</tbody></table>`
           : `<div class="empty">Zatím žádné objednávky. <a href="#/">Jít nakupovat</a></div>`}
