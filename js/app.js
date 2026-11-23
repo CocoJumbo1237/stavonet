@@ -1131,7 +1131,7 @@ window.addEventListener("hashchange", () => route());
 (async () => {
   try {
     const [d, obr, naz, rec] = await Promise.all([
-      fetch("data/katalog.json?v=6").then((r) => r.json()),
+      fetch("data/katalog.json?v=7").then((r) => r.json()),
       fetch("data/obrazky.json?v=3").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/nazvy.json?v=1").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/recenze.json?v=1").then((r) => (r.ok ? r.json() : null)).catch(() => null),
