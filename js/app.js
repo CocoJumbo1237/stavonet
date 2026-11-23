@@ -226,15 +226,16 @@ function card(p) {
   if (!Array.isArray(p)) ({ p, n } = p);  // sloučené struktury jednoho výrobku (sloucitStruktury)
   const [kod, , mj, , , , nad] = p;
   const nazev = n ? SKUPINY_NAZEV.get(STRUKT.get(kod).skupina) : p[1];
+  const bal = n && STRUKT.get(kod).druh === "baleni";
   return `<article class="p">
     <a class="p-ico" href="#/p/${esc(kod)}" aria-hidden="true" tabindex="-1">${OBR[kod] ? `<img src="${esc(OBR[kod].img)}" alt="" loading="lazy">` : ico(nad, 36)}</a>
     <a class="p-name" href="#/p/${esc(kod)}">${esc(nazev)}</a>
     ${OBR[kod]?.popis && OBR[kod].popis.length <= 90 ? `<div class="p-desc">${esc(OBR[kod].popis)}</div>` : ""}
     ${katCislo(kod) && !n ? `<div class="p-code">Kat. č. ${esc(katCislo(kod))}</div>` : ""}
-    ${n ? `<a class="p-var" href="#/p/${esc(kod)}">${n} ${n < 5 ? "struktury" : "struktur"} · ${cenaHlavni(p) != null ? "od" : ""}</a>` : ""}
+    ${n ? `<a class="p-var" href="#/p/${esc(kod)}">${bal ? `${n} balení` : `${n} ${n < 5 ? "struktury" : "struktur"}`} · ${cenaHlavni(p) != null ? "od" : ""}</a>` : ""}
     ${priceHtml(p)}
     ${dostupnostHtml(p)}
-    ${n ? `<a class="btn flex" href="#/p/${esc(kod)}">Vybrat strukturu</a>` : buyForm(p)}
+    ${n ? `<a class="btn flex" href="#/p/${esc(kod)}">${bal ? "Vybrat balení" : "Vybrat strukturu"}</a>` : buyForm(p)}
   </article>`;
 }
 
@@ -557,6 +558,8 @@ function product(kod) {
 // ve výpisu se slučují do jedné dlaždice. Pozná se to z názvu v Money, např. „Baum.SilikonTop K 1,5mm 25kg“.
 // (+ minerální „Baum.open K 2mm škráb.strukt.om. 30kg“; jiný výrobek než openTop)
 const STRUKT_RE = /^\s*baum(?:it|\.)\s*([a-zá-ž]+top|open)\s+([kr])\s*(\d+(?:[.,]\d+)?)\s*(?:mm)?\b[^\d]*?(\d+)\s*k?g\b/i;
+// Barvy (…Color) se liší jen balením: „Baum.PuraColor 14L“ / „Baum.PuraColor 5 L“ → přepínač „Balení“.
+const COLOR_RE = /^\s*baum(?:it|\.)\s*([a-zá-ž]+color)\s*(\d+(?:[.,]\d+)?)\s*(l|kg)\b/i;
 const CREATIV_RE = /^\s*baum(?:it|\.)\s*(creativtop)\s+(trend|silk|fine|max)\b(?:\s*(\d+)\s*mm)?\s+(\d+)\s*kg\b/i;
 const STRUKT = new Map();   // kód karty → {skupina, popis, poradi, baleni}
 const SKUPINY = new Map();  // skupina (výrobek) → karty seřazené podle struktury
@@ -570,6 +573,9 @@ function buildStruktury() {
       s = { vyr: m[1], popis: `${k ? "zrnitá" : "rýhovaná"} ${num(zrn)} mm`, poradi: (k ? 0 : 100) + zrn, baleni: m[4] };
     } else if ((m = n.match(CREATIV_RE))) {
       s = { vyr: m[1], popis: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() + (m[3] ? ` ${m[3]} mm` : ""), poradi: 200, baleni: m[4] };
+    } else if ((m = n.match(COLOR_RE))) {
+      const obj = +m[2].replace(",", ".");
+      s = { vyr: m[1], popis: `${num(obj)} ${m[3].toLowerCase()}`, poradi: obj, baleni: "", druh: "baleni" };
     }
     if (!s) continue;
     s.skupina = norm(s.vyr);
@@ -582,16 +588,16 @@ function buildStruktury() {
     arr.sort((a, b) => STRUKT.get(a[0]).poradi - STRUKT.get(b[0]).poradi || STRUKT.get(a[0]).popis.localeCompare(STRUKT.get(b[0]).popis));
     // různá balení v jedné skupině (SiliporTop 25/30 kg) → balení do popisu
     const bal = new Set(arr.map((p) => STRUKT.get(p[0]).baleni));
-    if (bal.size > 1) arr.forEach((p) => { const x = STRUKT.get(p[0]); x.popis += ` · ${x.baleni} kg`; });
+    if (bal.size > 1 && !bal.has("")) arr.forEach((p) => { const x = STRUKT.get(p[0]); x.popis += ` · ${x.baleni} kg`; });
     const vyr = (NAZ[arr[0][0]]?.n || "").match(/^Baumit\s+(\S+)/i)?.[1] || STRUKT.get(arr[0][0]).vyr;
-    SKUPINY_NAZEV.set(sk, `Baumit ${vyr}${bal.size === 1 ? ` ${[...bal][0]} kg` : ""}`);
+    SKUPINY_NAZEV.set(sk, `Baumit ${vyr}${bal.size === 1 && !bal.has("") ? ` ${[...bal][0]} kg` : ""}`);
   }
 }
 const cenaHlavni = (p) => { const c = price(p); return c ? (isFirm() ? c.bez : c.s) : null; };
 function strukturaHtml(p) {
   const s = STRUKT.get(p[0]);
   if (!s) return "";
-  return `<div class="struktura"><div class="struktura-lbl">Struktura</div><div class="chips">${SKUPINY.get(s.skupina).map((x) => {
+  return `<div class="struktura"><div class="struktura-lbl">${s.druh === "baleni" ? "Balení" : "Struktura"}</div><div class="chips">${SKUPINY.get(s.skupina).map((x) => {
     const c = cenaHlavni(x);
     return `<a href="#/p/${esc(x[0])}" class="chip${x === p ? " on" : ""}" data-struktura="${esc(s.skupina)}">${esc(STRUKT.get(x[0]).popis)}<small>${c != null ? kcAuto(c) : "na dotaz"}</small></a>`;
   }).join("")}</div></div>`;
