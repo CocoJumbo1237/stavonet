@@ -319,3 +319,37 @@ table.items { width: 100%; border-collapse: collapse; background: var(--surface)
 }
 
 [hidden] { display: none !important; }
+
+/* odstín Baumit Life (ticket 011) */
+.odstin { display: grid; gap: 6px; margin: 0 0 12px; }
+.odstin label { display: grid; gap: 4px; font-weight: 600; }
+.odstin input { max-width: 160px; padding: 8px 10px; font-size: 16px; letter-spacing: 1px; }
+.odstin .warnbox { margin: 6px 0 0; font-size: 13.5px; }
+.odstin-vysledek { display: flex; gap: 10px; align-items: center; font-size: 14px; margin-top: 4px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid #0003; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+.swatch.big { width: 44px; height: 44px; flex: none; margin: 0; }
+
+/* Karta a detail produktu po vzoru dek.cz: popis výrobce, cena za kg/l, dostupnost, −/+ a „celkem“ */
+.p-desc { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.price .unit { font-size: 12px; color: var(--muted); }
+.stock { font-size: 12.5px; color: var(--muted); }
+.stock.ok { color: var(--ok); font-weight: 600; }
+.buy { flex-wrap: wrap; align-items: center; }
+.stepper { display: inline-flex; border: 1px solid var(--line2); }
+.stepper .step { width: 32px; border: 0; background: var(--soft); font-size: 18px; cursor: pointer; color: var(--ink); }
+.stepper .step:hover { background: var(--line); }
+.stepper .qty, .p .stepper .qty, .pd .buy .stepper .qty { width: 54px; border: 0; border-left: 1px solid var(--line2); border-right: 1px solid var(--line2); -moz-appearance: textfield; }
+.stepper .qty::-webkit-outer-spin-button, .stepper .qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.buy-mj { font-size: 13px; color: var(--muted); }
+.buy-total { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.buy-total b { color: var(--ink); }
+.pd .stepper .qty { width: 70px; font-size: 16px; }
+.pd-info { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; align-items: start; }
+.pd-info h2 { margin: 0 0 8px; font-size: 20px; }
+.pd-info p { margin: 0 0 10px; }
+.pd-info .facts { margin-top: 0; }
+.usp { margin: 0; padding-left: 18px; }
+@media (max-width: 760px) {
+  .pd-info { grid-template-columns: 1fr; }
+  .p .buy .btn { flex-basis: 100%; }
+}

@@ -88,6 +88,7 @@ const ico = (id, size = 24) =>
 let STROM = [], P = [], byKod = new Map(), nadById = new Map(), searchIdx = [];
 const katCislo = (kod) => byKod.get(kod)?.[9] || "";
 let OBR = {}; // kód → {img, popis, list} z feedů výrobců (skripty/baumit_feed.py)
+let NAZ = {}; // kód → {n: oficiální název, d: popis, par: [[parametr, hodnota]], vyhody} (skripty/nazvy.py)
 let RECENZE = null; // {hodnoceni, pocet, recenze: [{jmeno, hvezdy, text}]} z data/recenze.json
 const katOf = (p) => nadById.get(p[6])?.kat.find((k) => k.slug === p[7]);
 
@@ -133,24 +134,80 @@ function priceHtml(p) {
   const tag = c.sleva ? `<span class="yourprice">Vaše cena −${c.sleva} %</span>` : "";
   // Spotřebitel musí jako hlavní (nejvýraznější) cenu vidět konečnou cenu s DPH (zákon o cenách);
   // cena bez DPH smí být jen menší pod ní. Ověřené firmy vidí jako hlavní cenu bez DPH.
+  const j = jednotkovaCena(p, c);
+  const jTxt = j ? `<div class="unit">${kc(isFirm() ? j.bez : j.s, true)} / ${esc(j.mj)} ${isFirm() ? "bez DPH" : "s DPH"}</div>` : "";
   if (isFirm())
-    return `<div class="price">${tag}<div class="main">${kcAuto(c.bez)} <small>/ ${mj} bez DPH</small>${c.sleva ? `<span class="old">${kcAuto(c.listBez)}</span>` : ""}</div><div class="alt">${kcAuto(c.s)} s DPH</div></div>`;
-  return `<div class="price"><div class="main">${kcAuto(c.s)} <small>/ ${mj} s DPH</small></div><div class="alt">${kcAuto(c.bez)} bez DPH</div></div>`;
+    return `<div class="price">${tag}${jTxt}<div class="main">${kcAuto(c.bez)} <small>/ ${mj} bez DPH</small>${c.sleva ? `<span class="old">${kcAuto(c.listBez)}</span>` : ""}</div><div class="alt">${kcAuto(c.s)} s DPH</div></div>`;
+  return `<div class="price">${jTxt}<div class="main">${kcAuto(c.s)} <small>/ ${mj} s DPH</small></div><div class="alt">${kcAuto(c.bez)} bez DPH</div></div>`;
+}
+
+// Cena za kg / l podle obsahu balení v názvu („… 25 kg“, „5 L“, „400 ml“) – jen u zboží prodávaného po kusech.
+function jednotkovaCena(p, c = price(p)) {
+  if (!c || !/^(ks|bal|kbel|kb|pyt|kr|kra)$/i.test(p[2])) return null;
+  const m = p[1].match(/(\d+(?:[,.]\d+)?)\s?(kg|l|ml)\b(?!\s*\/)/i);
+  if (!m) return null;
+  let obsah = +m[1].replace(",", "."), mj = m[2].toLowerCase();
+  if (mj === "ml") { obsah /= 1000; mj = "l"; }
+  if (!(obsah > 1)) return null; // u malých balení (400 ml, 0,7 kg) cena za kg/l zákazníkovi nepomůže
+  return { bez: r2(c.bez / obsah), s: r2(c.s / obsah), mj };
+}
+
+// Dostupnost ze skladové karty Money (stav při posledním exportu katalogu).
+function dostupnostHtml(p) {
+  return p[5] > 0
+    ? `<div class="stock ok">Skladem na prodejně</div>`
+    : `<div class="stock">Na objednávku – termín potvrdíme</div>`;
+}
+
+// Množství s tlačítky −/+ a řádkem „celkem“ (přepočítá se při změně, viz listener „input“ níže).
+function buyForm(p, big = false) {
+  const [kod, , mj] = p;
+  return `<form class="buy" data-kod="${esc(kod)}">
+      <div class="stepper"><button type="button" class="step" data-step="-1" aria-label="Méně">−</button><input class="qty" type="number" min="0.001" step="any" value="1" aria-label="Množství v ${esc(mj)}"><button type="button" class="step" data-step="1" aria-label="Více">+</button></div>
+      <span class="buy-mj">${esc(mj)}</span>
+      <button class="btn flex${big ? " big" : ""}" type="submit">Do košíku</button>
+      <div class="buy-total">${buyTotal(p, 1)}</div>
+    </form>`;
+}
+function buyTotal(p, q) {
+  const c = price(p);
+  if (!c || !(q > 0)) return "";
+  const firm = isFirm();
+  return `Celkem ${num(q)} ${esc(p[2])}: <b>${kc(r2((firm ? c.bez : c.s) * q), true)}</b> ${firm ? "bez DPH" : "s DPH"}`;
 }
 
 // ---------------------------------------------------------------- košík
+// Položka košíku: klíč „kód“, u tónované omítky/barvy Baumit „kód@odstín“ (např. 0286@0442).
+// Konfigurace odstínu (příplatek z RPC baumit_odstin) je v cart-odstiny pod stejným klíčem.
 const cart = () => store.get("cart", {});
-function setCart(c) { store.set("cart", c); updateHeader(); }
-function addToCart(kod, qty) {
+const cartOdstiny = () => store.get("cart-odstiny", {});
+const keyKod = (k) => k.split("@")[0];
+function setCart(c) {
+  store.set("cart", c);
+  store.set("cart-odstiny", Object.fromEntries(Object.entries(cartOdstiny()).filter(([k]) => k in c)));
+  updateHeader();
+}
+function addToCart(kod, qty, odstin) {
+  const key = odstin ? `${kod}@${odstin.odstin}` : kod;
+  if (odstin) store.set("cart-odstiny", { ...cartOdstiny(), [key]: odstin });
   const c = cart();
-  c[kod] = r2((c[kod] || 0) + qty);
+  c[key] = r2((c[key] || 0) + qty);
   setCart(c);
-  toast(`Do košíku: ${qty} × ${byKod.get(kod)[1]}`);
+  toast(`Do košíku: ${qty} × ${byKod.get(kod)[1]}${odstin ? `, odstín ${odstin.odstin}` : ""}`);
+}
+// Příplatek za odstín na balení: sazba Baumit podle koncového čísla – konečná cena bez marže a bez slev.
+// S DPH: sazba za kg/l zaokrouhlená na haléře × balení (stejně jako v vytvor_objednavku).
+function priplatek(o) {
+  if (!o || !(o.sazba_bez > 0) || o.priplatek_baleni_bez == null) return null;
+  return { bez: r2(o.sazba_bez * o.baleni), s: r2(r2(o.sazba_bez * (1 + CONFIG.dph / 100)) * o.baleni) };
 }
 function cartLines() {
-  return Object.entries(cart()).filter(([k]) => byKod.has(k)).map(([k, q]) => {
-    const p = byKod.get(k), c = price(p);
-    return { p, q, c, bez: c ? r2(c.bez * q) : 0, s: c ? r2(c.s * q) : 0 };
+  const ods = cartOdstiny();
+  return Object.entries(cart()).filter(([k]) => byKod.has(keyKod(k))).map(([k, q]) => {
+    const p = byKod.get(keyKod(k)), c = price(p), o = ods[k] || null, pp = priplatek(o);
+    const bez = c ? r2(c.bez * q) + (pp ? r2(pp.bez * q) : 0) : 0;
+    const s = c ? r2(c.s * q) + (pp ? r2(pp.s * q) : 0) : 0;
+    return { key: k, p, q, c, o, pp, bez: r2(bez), s: r2(s) };
   });
 }
 function cartTotals(lines = cartLines()) {
@@ -168,12 +225,11 @@ function card(p) {
   return `<article class="p">
     <a class="p-ico" href="#/p/${esc(kod)}" aria-hidden="true" tabindex="-1">${OBR[kod] ? `<img src="${esc(OBR[kod].img)}" alt="" loading="lazy">` : ico(nad, 36)}</a>
     <a class="p-name" href="#/p/${esc(kod)}">${esc(nazev)}</a>
+    ${OBR[kod]?.popis && OBR[kod].popis.length <= 90 ? `<div class="p-desc">${esc(OBR[kod].popis)}</div>` : ""}
     ${katCislo(kod) ? `<div class="p-code">Kat. č. ${esc(katCislo(kod))}</div>` : ""}
     ${priceHtml(p)}
-    <form class="buy" data-kod="${esc(kod)}">
-      <input class="qty" type="number" min="0.001" step="any" value="1" aria-label="Množství v ${esc(mj)}">
-      <button class="btn flex" type="submit">Do košíku</button>
-    </form>
+    ${dostupnostHtml(p)}
+    ${buyForm(p)}
   </article>`;
 }
 
@@ -395,11 +451,9 @@ function product(kod) {
         ${OBR[kod]?.popis ? `<p class="pd-desc">${esc(OBR[kod].popis)}</p>` : ""}
         <div class="box">
           ${priceHtml(p)}
-          <form class="buy" data-kod="${esc(kod)}">
-            <input class="qty" type="number" min="0.001" step="any" value="1" aria-label="Množství v ${esc(mj)}">
-            <span style="align-self:center" class="muted">${esc(mj)}</span>
-            <button class="btn flex big" type="submit">Do košíku</button>
-          </form>
+          ${dostupnostHtml(p)}
+          <div id="odstinBox"></div>
+          ${buyForm(p, true)}
           <table class="facts">
             ${katCislo(kod) ? `<tr><td>Katalogové číslo</td><td>${esc(katCislo(kod))}</td></tr>` : ""}
             ${isAdmin() ? `<tr><td>Interní kód</td><td>${esc(kod)}</td></tr>` : ""}
@@ -411,8 +465,68 @@ function product(kod) {
         </div>
       </div>
     </div>
+    ${podkladyHtml(kod)}
     ${related.length ? `<h2 class="section-title">Podobné zboží</h2><div class="products">${related.map(card).join("")}</div>` : ""}
     <div style="height:40px"></div>`;
+  // konfigurátor se rozhoduje podle názvu z Money (oficiální název z nazvy.json ho nemá měnit)
+  const nazevMoney = p.money || nazev;
+  if (/^\s*baum/i.test(nazevMoney) && /top|color/i.test(nazevMoney)) odstinKonfigurator(p);
+}
+
+// Popis a parametry od výrobce (skripty/nazvy.py → data/nazvy.json), jako „Popis / Parametry“ na dek.cz.
+function podkladyHtml(kod) {
+  const z = NAZ[kod] || {};
+  const par = (z.par || []).filter(([k]) => k !== "EAN" || isAdmin());
+  if (!z.d && !par.length && !z.vyhody?.length) return "";
+  return `<div class="pd-info">
+      ${z.d || z.vyhody?.length ? `<section class="box"><h2>Popis</h2>${z.d ? `<p>${esc(z.d)}</p>` : ""}${z.vyhody?.length ? `<ul class="usp">${z.vyhody.map((v) => `<li>${esc(v)}</li>`).join("")}</ul>` : ""}</section>` : ""}
+      ${par.length ? `<section class="box"><h2>Parametry</h2><table class="facts">${par.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table></section>` : ""}
+    </div>`;
+}
+
+// ---------------------------------------------------------------- odstín Baumit Life (ticket 011)
+// Zda jde odstín v daném výrobku namíchat a jaký je příplatek, říká Supabase (RPC baumit_odstin nad tabulkami
+// baumit_odstiny, baumit_odstin_vyrobky, baumit_priplatky). Nekompatibilní odstín neblokujeme, jen upozorníme.
+const dphTxt = (firm) => (firm ? "bez DPH" : "s DPH");
+function odstinRadek(o, pp, firm) {
+  return `<br><span class="note"><span class="swatch" style="background:#${esc(o.hex || "fff")}"></span>Odstín Baumit Life ${esc(o.odstin)}${o.nazev ? " " + esc(o.nazev) : ""}${pp ? ` · vč. příplatku ${kcAuto(firm ? pp.bez : pp.s)} / bal. ${dphTxt(firm)}` : ""}${o.kompatibilni ? "" : ` · <b style="color:var(--warn)">u tohoto výrobku Baumit nevyrábí – ověříme</b>`}</span>`;
+}
+async function odstinKonfigurator(p) {
+  const { data: zaklad } = await sb.rpc("baumit_odstin", { p_kod: p[0], p_odstin: null });
+  const box = $("#odstinBox"), form = $("form.buy", app);
+  if (!zaklad || !box || form?.dataset.kod !== p[0]) return;  // není ze vzorníku, nebo už je jiná stránka
+  box.innerHTML = `<div class="odstin">
+      <label>Odstín Baumit Life <span class="muted">(4místný kód; prázdné = bílá / základní)</span>
+        <input id="odstinKod" inputmode="numeric" maxlength="4" placeholder="např. 0446" autocomplete="off"></label>
+      <a class="note" href="https://baumit.cz/baumitlife/color-search" target="_blank" rel="noopener">Vybrat ve vzorníku Baumit Life ↗</a>
+      <div id="odstinInfo"></div>
+    </div>`;
+  const inp = $("#odstinKod"), info = $("#odstinInfo");
+  let n = 0, t;
+  const vyhodnot = async () => {
+    const v = inp.value.replace(/\D/g, "");
+    const my = ++n;
+    form._odstin = null;
+    if (!v) { delete form.dataset.odstin; info.innerHTML = ""; return; }
+    if (v.length < 4) { form.dataset.odstin = "chyba"; info.innerHTML = `<p class="note">Kód odstínu má 4 číslice.</p>`; return; }
+    form.dataset.odstin = "ceka";
+    const { data: o, error } = await sb.rpc("baumit_odstin", { p_kod: p[0], p_odstin: v });
+    if (my !== n) return;
+    if (error || !o) { form.dataset.odstin = "chyba"; info.innerHTML = `<p class="note">Odstín se nepodařilo ověřit, zkuste to znovu.</p>`; return; }
+    if (!o.platny) { form.dataset.odstin = "chyba"; info.innerHTML = `<div class="warnbox">${esc(o.upozorneni[0])}</div>`; return; }
+    form.dataset.odstin = "ok";
+    form._odstin = o;
+    const firm = isFirm(), c = price(p), pp = priplatek(o);
+    const sazba = firm ? o.sazba_bez : r2(o.sazba_bez * (1 + CONFIG.dph / 100));
+    info.innerHTML = `
+      <div class="odstin-vysledek"><span class="swatch big" style="background:#${esc(o.hex)}"></span>
+        <div><b>${esc(o.odstin)}${o.nazev ? " " + esc(o.nazev) : ""}</b>${o.symbol ? ` <span title="symbol ve vzorníku Baumit Life">${esc(o.symbol)}</span>` : ""} · koncové číslo ${o.koncove}
+        <br>${pp ? `Příplatek za odstín ${kcAuto(sazba)} / ${esc(o.mj)} → <b>${kcAuto(firm ? pp.bez : pp.s)}</b> za balení ${num(o.baleni)} ${esc(o.mj)} ${dphTxt(firm)}`
+          : o.sazba_bez > 0 ? `Příplatek za odstín ${kcAuto(sazba)} / ${esc(o.mj)} ${dphTxt(firm)} – dopočítáme v potvrzení` : "Bez příplatku za odstín"}
+        ${c && pp ? `<br>Cena s odstínem: <b>${kcAuto(r2((firm ? c.bez : c.s) + (firm ? pp.bez : pp.s)))}</b> / bal. ${dphTxt(firm)}` : ""}</div></div>
+      ${o.upozorneni.map((u) => `<div class="warnbox">${esc(u)}</div>`).join("")}`;
+  };
+  inp.addEventListener("input", () => { clearTimeout(t); t = setTimeout(vyhodnot, 250); });
 }
 
 function cartPage() {
@@ -432,12 +546,12 @@ function cartPage() {
       <div>
         <table class="items cart-items">
           <thead><tr><th>Zboží</th><th class="num">Množství</th><th class="num">Cena / MJ ${firm ? "bez DPH" : "s DPH"}</th><th class="num">Celkem ${firm ? "bez DPH" : "s DPH"}</th><th></th></tr></thead>
-          <tbody>${lines.map(({ p, q, c, bez, s }) => `<tr>
-            <td><a href="#/p/${esc(p[0])}"><strong>${esc(p[1])}</strong></a>${katCislo(p[0]) ? `<br><span class="note">Kat. č. ${esc(katCislo(p[0]))}</span>` : ""}</td>
-            <td class="num"><input class="qty" type="number" min="0.001" step="any" value="${q}" data-kod="${esc(p[0])}"> ${esc(p[2])}</td>
-            <td class="num">${c ? kcAuto(firm ? c.bez : c.s) : "na dotaz"}</td>
+          <tbody>${lines.map(({ key, p, q, c, o, pp, bez, s }) => `<tr>
+            <td><a href="#/p/${esc(p[0])}"><strong>${esc(p[1])}</strong></a>${katCislo(p[0]) ? `<br><span class="note">Kat. č. ${esc(katCislo(p[0]))}</span>` : ""}${o ? odstinRadek(o, pp, firm) : ""}</td>
+            <td class="num"><input class="qty" type="number" min="0.001" step="any" value="${q}" data-kod="${esc(key)}"> ${esc(p[2])}</td>
+            <td class="num">${c ? kcAuto(r2((firm ? c.bez : c.s) + (pp ? (firm ? pp.bez : pp.s) : 0))) : "na dotaz"}</td>
             <td class="num"><strong>${c ? kc(firm ? bez : s, true) : "–"}</strong></td>
-            <td><button class="x" data-del="${esc(p[0])}" aria-label="Odebrat">×</button></td>
+            <td><button class="x" data-del="${esc(key)}" aria-label="Odebrat">×</button></td>
           </tr>`).join("")}</tbody>
         </table>
         <p style="margin-top:10px"><a href="#/">← Pokračovat v nákupu</a></p>
@@ -569,7 +683,7 @@ async function createOrder(v, lines) {
     doprava: v.doprava, platba: v.platba,
     kontakt: { jmeno: v.jmeno, telefon: v.telefon, email: v.email, firma: v.firma, ico: v.ico, dic: v.dic, ulice: v.ulice, mesto: v.mesto, psc: v.psc },
     stavba: v.stavba || "", ridic: v.ridic || "", poznamka: v.poznamka || "",
-    polozky: lines.map(({ p, q }) => ({ kod: p[0], nazev: p[1], mnozstvi: q })),
+    polozky: lines.map(({ p, q, o }) => ({ kod: p[0], nazev: p[1], mnozstvi: q, odstin: o?.odstin || null })),
   };
   const { data, error } = await sb.rpc("vytvor_objednavku", { p: payload });
   if (error) throw new Error(error.message);
@@ -788,7 +902,18 @@ async function accountPage() {
     const o = await fetchOrder(b.dataset.re);
     const c = cart();
     let n = 0;
-    for (const i of o.polozky) if (byKod.has(i.kod)) { c[i.kod] = r2((c[i.kod] || 0) + +i.mnozstvi); n++; }
+    const ods = cartOdstiny();
+    for (const i of o.polozky) {
+      if (!byKod.has(i.kod)) continue;  // řádky „Příplatek za odstín“ se dopočítají znovu
+      let key = i.kod;
+      if (i.odstin) {
+        const { data: cfg } = await sb.rpc("baumit_odstin", { p_kod: i.kod, p_odstin: i.odstin });
+        if (!cfg?.platny) continue;
+        key = `${i.kod}@${cfg.odstin}`; ods[key] = cfg;
+      }
+      c[key] = r2((c[key] || 0) + +i.mnozstvi); n++;
+    }
+    store.set("cart-odstiny", ods);
     setCart(c);
     toast(`Do košíku přidáno ${n} položek z objednávky ${o.cislo}.`);
     location.hash = "#/kosik";
@@ -978,7 +1103,23 @@ app.addEventListener("submit", (e) => {
   e.preventDefault();
   const q = r2(+f.querySelector(".qty").value);
   if (!(q > 0)) { toast("Zadejte množství."); return; }
-  addToCart(f.dataset.kod, q);
+  if (f.dataset.odstin === "ceka") { toast("Ověřuji odstín, zkuste to za okamžik."); return; }
+  if (f.dataset.odstin === "chyba") { toast("Zadejte platný kód odstínu Baumit Life, nebo pole nechte prázdné."); return; }
+  addToCart(f.dataset.kod, q, f._odstin || null);
+});
+// −/+ u množství a přepočet řádku „celkem“
+app.addEventListener("click", (e) => {
+  const b = e.target.closest(".buy .step");
+  if (!b) return;
+  const i = b.closest(".buy").querySelector(".qty");
+  i.value = Math.max(1, r2((+i.value || 0) + +b.dataset.step));
+  i.dispatchEvent(new Event("input", { bubbles: true }));
+});
+app.addEventListener("input", (e) => {
+  const i = e.target.closest(".buy .qty");
+  if (!i) return;
+  const f = i.closest(".buy"), t = f.querySelector(".buy-total"), p = byKod.get(f.dataset.kod);
+  if (t && p) t.innerHTML = buyTotal(p, r2(+i.value));
 });
 $("#search").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -989,19 +1130,23 @@ window.addEventListener("hashchange", () => route());
 
 (async () => {
   try {
-    const [d, obr, rec] = await Promise.all([
+    const [d, obr, naz, rec] = await Promise.all([
       fetch("data/katalog.json?v=6").then((r) => r.json()),
       fetch("data/obrazky.json?v=3").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+      fetch("data/nazvy.json?v=1").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/recenze.json?v=1").then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     OBR = obr;
+    NAZ = naz;
     RECENZE = rec;
     $("#footRecenze").href = RECENZE_URL;
     STROM = d.strom;
     P = d.produkty;
     STROM.forEach((n) => nadById.set(n.id, n));
     P.forEach((p) => byKod.set(p[0], p));
-    searchIdx = P.map((p) => norm(`${p[1]} ${p[0]} ${p[9] || ""} ${katOf(p)?.nazev || ""}`));
+    // oficiální název výrobce místo zkratky z Money; původní název zůstává ve vyhledávání (p.money)
+    P.forEach((p) => { if (NAZ[p[0]]?.n) { p.money = p[1]; p[1] = NAZ[p[0]].n; } });
+    searchIdx = P.map((p) => norm(`${p[1]} ${p.money || ""} ${p[0]} ${p[9] || ""} ${katOf(p)?.nazev || ""}`));
     await loadProfile();
     buildMega();
     updateHeader();
