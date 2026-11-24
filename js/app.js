@@ -87,7 +87,8 @@ const ico = (id, size = 24) =>
 // ---------------------------------------------------------------- data
 let STROM = [], P = [], byKod = new Map(), nadById = new Map(), searchIdx = [];
 const katCislo = (kod) => byKod.get(kod)?.[9] || "";
-let OBR = {}; // kód → {img, popis, list} z feedů výrobců (skripty/baumit_feed.py)
+let OBR = {}; // kód → {img, popis} z feedů výrobců (skripty/obrazky.py)
+let PODK = {}; // kód → [{t: tl|bl|dop, n: název, u: URL u výrobce}] (skripty/podklady_web.py, ticket 017)
 let NAZ = {}; // kód → {n: oficiální název, d: popis, par: [[parametr, hodnota]], vyhody} (skripty/nazvy.py)
 let RECENZE = null; // {hodnoceni, pocet, recenze: [{jmeno, hvezdy, text}]} z data/recenze.json
 const katOf = (p) => nadById.get(p[6])?.kat.find((k) => k.slug === p[7]);
@@ -533,13 +534,13 @@ function product(kod) {
           ${strukturaHtml(p)}
           <div id="odstinBox"></div>
           ${buyForm(p, true)}
+          ${dokumentyHtml(kod)}
           <table class="facts">
             ${katCislo(kod) ? `<tr><td>Katalogové číslo</td><td>${esc(katCislo(kod))}</td></tr>` : ""}
             ${isAdmin() ? `<tr><td>Interní kód</td><td>${esc(kod)}</td></tr>` : ""}
             <tr><td>Měrná jednotka</td><td>${esc(mj)}</td></tr>
             <tr><td>Kategorie</td><td>${esc(nad.nazev)}${kat ? " › " + esc(kat.nazev) : ""}${pod ? " › " + esc(pod.nazev) : ""}</td></tr>
             <tr><td>Sazba DPH</td><td>${CONFIG.dph} %</td></tr>
-            ${OBR[kod]?.list ? `<tr><td>Technický list</td><td><a href="${esc(OBR[kod].list)}" target="_blank" rel="noopener">Otevřít u výrobce</a></td></tr>` : ""}
           </table>
         </div>
       </div>
@@ -630,6 +631,18 @@ app.addEventListener("click", (e) => {
   const b = e.target.closest("[data-odstin-prenos]");
   if (b) odstinPrenos = { skupina: "*", kod: b.dataset.odstinPrenos };
 });
+
+// Dokumenty výrobce u nákupu (ticket 017): technický list, bezpečnostní list, prohlášení o vlastnostech.
+// Soubory nehostujeme – odkaz vede na PDF u výrobce (data/podklady.json, skripty/podklady_web.py).
+const DOK_POPIS = { tl: "složení, použití, spotřeba", bl: "bezpečnost a první pomoc", dop: "vlastnosti podle normy, označení CE" };
+const PDF_IKONA = `<svg width="16" height="18" viewBox="0 0 28 32" aria-hidden="true"><path d="M2 2h16l8 8v20H2z" fill="#fff" stroke="#bdbdbd" stroke-width="2"/><path d="M18 2v8h8" fill="none" stroke="#bdbdbd" stroke-width="2"/><rect y="17" width="22" height="10" rx="2" fill="#c8441b"/><text x="11" y="25" font-size="7.5" font-weight="700" fill="#fff" text-anchor="middle" font-family="sans-serif">PDF</text></svg>`;
+function dokumentyHtml(kod) {
+  const docs = PODK[kod];
+  if (!docs?.length) return "";
+  const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return "web výrobce"; } };
+  return `<div class="dokumenty"><span>Dokumenty výrobce:</span>${docs.map((d) =>
+    `<a href="${esc(d.u)}" target="_blank" rel="noopener" title="${esc(`${d.n} (${DOK_POPIS[d.t] || "PDF"}) – otevře se na ${host(d.u)}`)}">${PDF_IKONA}${esc(d.n.replace("Prohlášení o vlastnostech", "Prohlášení"))}</a>`).join("")}</div>`;
+}
 
 // Popis a parametry od výrobce (skripty/nazvy.py → data/nazvy.json), jako „Popis / Parametry“ na dek.cz.
 function podkladyHtml(kod) {
@@ -1334,13 +1347,15 @@ window.addEventListener("hashchange", () => route());
 
 (async () => {
   try {
-    const [d, obr, naz, rec] = await Promise.all([
+    const [d, obr, naz, podk, rec] = await Promise.all([
       fetch("data/katalog.json?v=8").then((r) => r.json()),
-      fetch("data/obrazky.json?v=3").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+      fetch("data/obrazky.json?v=4").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/nazvy.json?v=1").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
+      fetch("data/podklady.json?v=1").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/recenze.json?v=1").then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     OBR = obr;
+    PODK = podk;
     NAZ = naz;
     RECENZE = rec;
     $("#footRecenze").href = RECENZE_URL;

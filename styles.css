@@ -399,3 +399,9 @@ table.items { width: 100%; border-collapse: collapse; background: var(--surface)
 .vyr-odkaz { padding: 5px 10px; background: #fff; border: 1px solid var(--line); border-radius: 6px; font-weight: 600; text-decoration: none; }
 .vyr-odkaz:hover { border-color: var(--accent); }
 .vyr-ne { padding: 5px 10px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; }
+
+/* dokumenty výrobce pod nákupem (ticket 017) */
+.dokumenty { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 4px; font-size: 14px; }
+.dokumenty > span { color: var(--muted); width: 100%; }
+.dokumenty a { display: inline-flex; gap: 6px; align-items: center; min-height: 32px; padding: 4px 10px 4px 6px; border: 1px solid var(--line2); border-radius: 999px; text-decoration: none; color: inherit; background: #fff; }
+.dokumenty a:hover, .dokumenty a:focus-visible { border-color: var(--brand); }
