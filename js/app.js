@@ -311,7 +311,7 @@ async function termsPage() {
   markMega();
   app.innerHTML = `<div class="crumbs"><a href="#/">Úvod</a> / Obchodní podmínky</div><div class="list-head"><h1>Obchodní podmínky</h1></div><div class="terms" id="terms">Načítám…</div>`;
   // vlastní statický soubor z webu (ne uživatelský obsah)
-  const html = await fetch("data/obchodni-podminky.html?v=2").then((r) => (r.ok ? r.text() : null)).catch(() => null);
+  const html = await fetch("data/obchodni-podminky.html?v=3").then((r) => (r.ok ? r.text() : null)).catch(() => null);
   const el = $("#terms");
   if (el) el.innerHTML = html || `Obchodní podmínky se nepodařilo načíst. Napište nám na <a href="mailto:${esc(CONFIG.email)}">${esc(CONFIG.email)}</a>.`;
 }
@@ -358,7 +358,7 @@ function home() {
         <div class="usp">
           <div><b>Osobní odběr</b>připravíme předem na prodejně</div>
           <div><b>Doprava na stavbu</b>vlastními vozy až na místo</div>
-          <div><b>Firemní ceny</b>pro ověřené firmy, na fakturu</div>
+          <div><b>Firemní ceny</b>sleva pro ověřené firmy</div>
           <div><b>Poradíme</b>s výběrem i výpočtem množství</div>
         </div>
         <h2 class="section-title">Značky, které vedeme</h2>
@@ -806,7 +806,8 @@ const DOPRAVA = [
 const PLATBA = [
   { id: "prodejna", nazev: "Hotově nebo kartou při převzetí", popis: "Na prodejně nebo řidiči při dovozu" },
   { id: "prevod", nazev: "Bankovním převodem předem", popis: "Platební údaje a QR kód dostanete po odeslání objednávky" },
-  { id: "faktura", nazev: "Na fakturu", popis: "Pro ověřené firemní zákazníky", jenFirma: true },
+  // platba na fakturu už se na webu nenabízí; záznam zůstává jen kvůli zobrazení starších objednávek
+  { id: "faktura", nazev: "Na fakturu", popis: "Pro ověřené firemní zákazníky", skryto: true },
 ];
 
 function checkout() {
@@ -830,10 +831,7 @@ function checkout() {
           </div>
         </div>
         <div class="box step"><h2><i>2</i>Platba</h2>
-          ${PLATBA.map((pl) => {
-            const dis = pl.jenFirma && !firm;
-            return `<label class="opt ${dis ? "dis" : ""}"><input type="radio" name="platba" value="${pl.id}" ${pl.id === "prodejna" ? "checked" : ""} ${dis ? "disabled" : ""}><div><b>${esc(pl.nazev)}</b><span>${esc(pl.popis)}${pl.id === "faktura" && firm ? ` – splatnost ${u.splatnost || 14} dní` : ""}${dis ? (isFirm() ? " – po ověření účtu" : " – nutný firemní účet") : ""}</span></div></label>`;
-          }).join("")}
+          ${PLATBA.filter((pl) => !pl.skryto).map((pl) => `<label class="opt"><input type="radio" name="platba" value="${pl.id}" ${pl.id === "prodejna" ? "checked" : ""}><div><b>${esc(pl.nazev)}</b><span>${esc(pl.popis)}</span></div></label>`).join("")}
         </div>
         <div class="box step"><h2><i>3</i>Kontaktní a fakturační údaje</h2>
           <div class="form">
@@ -1023,7 +1021,7 @@ function registerPage(params) {
     app.innerHTML = `<div class="auth box" style="max-width:640px">
       <h1 style="font-size:34px;margin:0 0 10px">Registrace</h1>
       <div class="seg"><button type="button" data-t="osoba" class="${typ === "osoba" ? "on" : ""}">Soukromá osoba</button><button type="button" data-t="firma" class="${typ === "firma" ? "on" : ""}">Firma / živnostník</button></div>
-      ${typ === "firma" ? `<p class="note" style="margin-top:0">Po ověření firmy vám nastavíme firemní ceny a povolíme nákup na fakturu.</p>` : ""}
+      ${typ === "firma" ? `<p class="note" style="margin-top:0">Po ověření firmy vám nastavíme firemní ceny.</p>` : ""}
       <form class="form" id="rf" novalidate>
         ${typ === "firma" ? `
           <label class="full">Název firmy *<input name="firma" required autocomplete="organization"></label>
@@ -1103,8 +1101,7 @@ async function accountPage() {
         ${isFirm(u) ? `<p>${u.schvaleno ? `<span class="badge ok">Ověřená firma</span>` : `<span class="badge warn">Čeká na ověření</span>`}</p>` : ""}
         <table class="sum">
           ${isFirm(u) ? `<tr><td>IČ / DIČ</td><td>${esc(u.ico)} / ${esc(u.dic || "–")}</td></tr>
-            <tr><td>Firemní sleva</td><td>${u.schvaleno ? `${+u.sleva} %` : "po ověření"}</td></tr>
-            <tr><td>Platba na fakturu</td><td>${u.schvaleno ? `splatnost ${u.splatnost} dní` : "po ověření"}</td></tr>` : ""}
+            <tr><td>Firemní sleva</td><td>${u.schvaleno ? `${+u.sleva} %` : "po ověření"}</td></tr>` : ""}
           <tr><td>Kontakt</td><td>${esc(u.jmeno)}</td></tr>
           <tr><td>E-mail</td><td>${esc(u.email)}</td></tr>
           <tr><td>Telefon</td><td>${esc(u.telefon)}</td></tr>
@@ -1249,25 +1246,23 @@ async function adminCustomers(params) {
       <a href="#/admin/firmy?jen=firmy" class="${jen === "firmy" ? "on" : ""}">Všechny firmy</a>
       <a href="#/admin/firmy?jen=vse" class="${jen === "vse" ? "on" : ""}">Všichni zákazníci</a>
     </div>
-    ${rows.length ? `<table class="items" style="margin-top:12px"><thead><tr><th>Zákazník</th><th>IČ</th><th>Kontakt</th><th>Ověřeno</th><th class="num">Sleva %</th><th class="num">Splatnost</th><th></th></tr></thead><tbody>
+    ${rows.length ? `<table class="items" style="margin-top:12px"><thead><tr><th>Zákazník</th><th>IČ</th><th>Kontakt</th><th>Ověřeno</th><th class="num">Sleva %</th><th></th></tr></thead><tbody>
       ${rows.map((r) => `<tr data-id="${r.id}">
         <td><b>${esc(r.firma || r.jmeno)}</b>${r.firma ? `<br><span class="note">${esc(r.jmeno)}</span>` : ""}${r.je_admin ? ` <span class="badge">admin</span>` : ""}</td>
         <td>${r.ico ? `<a href="https://ares.gov.cz/ekonomicke-subjekty?ico=${esc(r.ico)}" target="_blank" rel="noopener">${esc(r.ico)}</a>` : "–"}</td>
         <td>${esc(r.email)}<br><span class="note">${esc(r.telefon)}</span></td>
         <td>${r.typ === "firma" ? `<input type="checkbox" name="schvaleno" ${r.schvaleno ? "checked" : ""}>` : "–"}</td>
         <td class="num">${r.typ === "firma" ? `<input class="qty" type="number" name="sleva" min="0" max="99" step="0.5" value="${+r.sleva}">` : "–"}</td>
-        <td class="num">${r.typ === "firma" ? `<input class="qty" type="number" name="splatnost" min="0" max="120" value="${r.splatnost}">` : "–"}</td>
         <td class="num">${r.typ === "firma" ? `<button class="btn" data-save>Uložit</button>` : ""}</td>
       </tr>`).join("")}</tbody></table>`
       : `<div class="empty" style="margin-top:12px">Nic tu není.</div>`}
-    <p class="note">Firma po ověření uvidí ceny se slevou a může platit na fakturu. IČ se otevře v registru ARES.</p>
+    <p class="note">Firma po ověření uvidí ceny se slevou. IČ se otevře v registru ARES.</p>
     <div style="height:40px"></div>`;
   $$("[data-save]").forEach((b) => (b.onclick = async () => {
     const tr = b.closest("tr");
     const upd = {
       schvaleno: tr.querySelector("[name=schvaleno]").checked,
       sleva: Math.min(99, Math.max(0, +tr.querySelector("[name=sleva]").value || 0)),
-      splatnost: Math.min(120, Math.max(0, parseInt(tr.querySelector("[name=splatnost]").value) || 0)),
     };
     const { error } = await sb.from("profily").update(upd).eq("id", tr.dataset.id);
     toast(error ? "Chyba: " + error.message : "Uloženo.");
@@ -1348,7 +1343,7 @@ window.addEventListener("hashchange", () => route());
 (async () => {
   try {
     const [d, obr, naz, podk, rec] = await Promise.all([
-      fetch("data/katalog.json?v=8").then((r) => r.json()),
+      fetch("data/katalog.json?v=9").then((r) => r.json()),
       fetch("data/obrazky.json?v=4").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/nazvy.json?v=1").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch("data/podklady.json?v=1").then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
